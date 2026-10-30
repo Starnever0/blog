@@ -2,6 +2,7 @@
 
 单页 HTML 博客。一页一文件，平铺在本目录，自包含。
 站点 https://starnever0.github.io/blog/ · 仓库 `Starnever0/blog`
+替换旧版 blogkit （已停止使用）
 
 ## 写一篇
 

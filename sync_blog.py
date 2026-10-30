@@ -64,6 +64,7 @@ SKIP_NAMES = {INDEX_NAME, "sync_blog.py"}
 
 DEFAULT_CONFIG = {
     "base_url": "https://starnever0.github.io/blog",
+    "repo": "https://github.com/Starnever0/blog",
     "feishu_folder_token": "",
     "git_remote": "origin",
     "git_branch": "main",
@@ -445,6 +446,8 @@ def main() -> int:
 
     cfg = load_config()
     base = cfg["base_url"].rstrip("/")
+    repo = cfg["repo"].rstrip("/")
+    branch = cfg["git_branch"]
 
     pages = scan_pages()
     manifest = load_manifest()
@@ -452,7 +455,7 @@ def main() -> int:
 
     print(f"blogsite 同步 · {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"本地  {ROOT}")
-    print(f"仓库  https://github.com/Starnever0/blog")
+    print(f"仓库  {repo}")
     print(f"单页  {len(pages)} 个\n")
 
     added = []
@@ -500,7 +503,8 @@ def main() -> int:
         entry = next((e for e in manifest["pages"] if e.get("file") == rel), {})
         print(f"\n[{tag}] {entry.get('title') or name}")
         print(f"  本地   {path}")
-        print(f"  GitHub {base}/{rel}")
+        print(f"  站点   {base}/{rel}")
+        print(f"  仓库   {repo}/blob/{branch}/{rel}")
         print(f"  飞书   {remote.get(name) or '（未在远端找到）'}")
 
     for n in new:
