@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSpark · 让 AI 少翻几遍字典</title>
+<style>
+:root{
+  --paper:#FAF7F2;
+  --paper-2:#F2EBE0;
+  --paper-3:#E9E0D2;
+  --ink:#1A1714;
+  --ink-2:#4A423B;
+  --ink-3:#8A7E71;
+  --line:#DFD5C6;
+  --line-2:#EDE5D9;
+  --red:#B5341F;
+  --red-2:#D9604A;
+  --red-soft:#F7E5DF;
+  --blue:#1E4B6E;
+  --blue-soft:#E4ECF2;
+  --green:#2F6B4F;
+  --green-soft:#E3EFE7;
+  --serif:"Songti SC","Source Han Serif SC","Noto Serif SC","STSong","SimSun",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
+  --mono:"JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+  --w-text:700px;
+  --w-wide:940px;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:17px;line-height:1.85;
+  -webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(circle at 18% 8%,rgba(181,52,31,.045),transparent 42%),
+                   radial-gradient(circle at 82% 78%,rgba(30,75,110,.05),transparent 46%);
+  background-attachment:fixed;
+}
+::selection{background:var(--red-soft);color:var(--red);}
+
+/* ---------- progress ---------- */
+#bar{position:fixed;top:0;left:0;height:3px;width:0;background:var(--red);z-index:99;transition:width .1s linear;}
+
+/* ---------- shell ---------- */
+.wrap{max-width:var(--w-wide);margin:0 auto;padding:0 28px;}
+.col{max-width:var(--w-text);margin:0 auto;}
+p{margin:0 0 1.05em;}
+a{color:var(--red);text-decoration:none;border-bottom:1px solid rgba(181,52,31,.3);}
+a:hover{border-bottom-color:var(--red);}
+strong{font-weight:600;color:var(--ink);}
+em{font-style:normal;background:linear-gradient(180deg,transparent 62%,var(--red-soft) 62%);}
+code{font-family:var(--mono);font-size:.86em;background:var(--paper-3);padding:2px 6px;border-radius:3px;color:var(--blue);}
+
+/* ---------- hero ---------- */
+header.hero{padding:88px 0 54px;position:relative;overflow:hidden;}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--red);display:flex;align-items:center;gap:12px;margin-bottom:26px;
+}
+.kicker::after{content:"";flex:1;height:1px;background:var(--line);}
+h1{
+  font-family:var(--serif);font-weight:700;font-size:clamp(46px,9vw,86px);
+  line-height:1.02;letter-spacing:-.02em;margin:0 0 6px;
+}
+h1 .sub{
+  display:block;font-size:clamp(24px,4.2vw,40px);font-weight:400;
+  color:var(--ink-2);letter-spacing:.01em;margin-top:18px;line-height:1.4;
+}
+.pen{position:relative;display:inline-block;color:var(--red);}
+.pen svg{position:absolute;left:-6%;bottom:-16px;width:112%;height:22px;overflow:visible;}
+.lead{
+  font-family:var(--serif);font-size:clamp(17px,2.2vw,20px);line-height:1.95;color:var(--ink-2);
+  max-width:640px;margin:44px 0 0;border-left:2px solid var(--red);padding-left:22px;
+}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:38px;}
+.chip{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink-2);
+  border:1px solid var(--line);background:#fff;padding:5px 12px;border-radius:999px;
+}
+.chip b{color:var(--red);font-weight:600;}
+
+/* ---------- section ---------- */
+section{padding:56px 0;border-top:1px solid var(--line-2);position:relative;}
+section:first-of-type{border-top:none;}
+.shead{display:flex;align-items:baseline;gap:18px;margin-bottom:26px;}
+.snum{
+  font-family:var(--serif);font-size:44px;line-height:1;color:var(--red);
+  opacity:.55;font-style:italic;flex:none;
+}
+h2{
+  font-family:var(--serif);font-size:clamp(25px,3.4vw,33px);line-height:1.35;
+  margin:0;font-weight:700;letter-spacing:-.01em;
+}
+h3{
+  font-family:var(--sans);font-size:16px;font-weight:700;letter-spacing:.04em;
+  margin:38px 0 14px;color:var(--ink);
+  display:flex;align-items:center;gap:10px;
+}
+h3::before{content:"";width:16px;height:2px;background:var(--red);flex:none;}
+
+/* ---------- pull quote ---------- */
+blockquote{
+  margin:36px 0;padding:26px 30px;background:#fff;border:1px solid var(--line);
+  border-left:4px solid var(--red);border-radius:2px;
+  font-family:var(--serif);font-size:19px;line-height:1.8;color:var(--ink);
+  box-shadow:0 1px 0 rgba(26,23,20,.03);
+}
+blockquote p:last-child{margin-bottom:0;}
+blockquote .tag{
+  display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;
+  color:var(--ink-3);margin-bottom:12px;text-transform:uppercase;
+}
+
+/* ---------- figure ---------- */
+figure{margin:40px 0;padding:0;}
+.figbox{
+  background:#fff;border:1px solid var(--line);border-radius:3px;padding:26px 22px 18px;
+  box-shadow:0 2px 14px rgba(26,23,20,.035);
+  overflow-x:auto;
+}
+.figbox svg{display:block;width:100%;height:auto;min-width:520px;}
+figcaption{
+  margin-top:12px;font-size:12.5px;color:var(--ink-3);line-height:1.7;
+  font-family:var(--mono);letter-spacing:.02em;
+}
+.lg{display:flex;flex-wrap:wrap;gap:8px 26px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line-2);}
+.lg span{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);}
+.lg i{display:inline-block;width:22px;height:0;border-top:2.5px solid;flex:none;}
+.lg .g i{border-color:var(--green);}
+.lg .b i{border-color:var(--blue);}
+.lg .r i{border-color:var(--red);border-top-style:dashed;}
+figcaption b{color:var(--ink-2);font-weight:600;}
+
+/* ---------- table ---------- */
+.tbl{width:100%;border-collapse:collapse;margin:26px 0;font-size:14.5px;}
+.tbl caption{caption-side:top;text-align:left;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);letter-spacing:.1em;padding-bottom:12px;}
+.tbl th{
+  text-align:left;font-weight:600;font-size:12px;letter-spacing:.1em;color:var(--ink-3);
+  padding:0 14px 10px;border-bottom:2px solid var(--ink);white-space:nowrap;
+}
+.tbl td{padding:14px;border-bottom:1px solid var(--line-2);vertical-align:top;line-height:1.65;}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl .name{font-weight:600;white-space:nowrap;}
+.tbl .hi{background:var(--red-soft);}
+.tbl .hi .name{color:var(--red);}
+
+/* ---------- roles ---------- */
+.roles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:30px 0;}
+.role{background:#fff;border:1px solid var(--line);border-radius:3px;padding:20px 18px;}
+.role .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--ink-3);display:block;margin-bottom:8px;}
+.role .n{font-family:var(--serif);font-size:20px;font-weight:700;display:block;margin-bottom:6px;}
+.role .d{font-size:13.5px;color:var(--ink-2);line-height:1.7;}
+.role.r1 .n{color:var(--red);}
+.role.r2 .n{color:var(--blue);}
+.role.r3 .n{color:var(--green);}
+
+/* ---------- stats ---------- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin:32px 0;}
+.stat{background:#fff;padding:24px 20px;}
+.stat .v{font-family:var(--serif);font-size:34px;line-height:1;color:var(--red);display:block;margin-bottom:10px;letter-spacing:-.02em;}
+.stat .v.small{font-size:27px;}
+.stat .l{font-size:13px;color:var(--ink-2);line-height:1.65;}
+
+/* ---------- warn ---------- */
+.warn{background:var(--paper-2);border:1px solid var(--line);border-radius:3px;padding:8px 26px 18px;margin:30px 0;}
+.warn .item{padding:18px 0;border-bottom:1px dashed var(--line);}
+.warn .item:last-child{border-bottom:none;}
+.warn .item b{display:block;font-size:15px;margin-bottom:4px;color:var(--ink);}
+.warn .item b::before{content:"／ ";color:var(--red);font-weight:700;}
+.warn .item p{margin:0;font-size:14px;color:var(--ink-2);line-height:1.75;}
+
+/* ---------- demo ---------- */
+.demo{background:#fff;border:1px solid var(--line);border-radius:3px;padding:26px;margin:32px 0;}
+.demo .h{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--ink-3);margin-bottom:18px;}
+.slots{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;}
+.slot{
+  width:52px;height:56px;border:1px solid var(--line);border-radius:2px;background:var(--paper);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:10px;color:var(--ink-3);transition:.18s;position:relative;
+}
+.slot.on{background:var(--green-soft);border-color:var(--green);color:var(--green);}
+.slot.cut{background:var(--red-soft);border-color:rgba(181,52,31,.45);color:var(--red);}
+.slot.cut::after{content:"";position:absolute;left:8px;right:8px;top:50%;height:1px;background:var(--red);transform:rotate(-16deg);}
+.slot .mark{font-size:15px;line-height:1;margin-bottom:3px;}
+.demo input[type=range]{width:100%;accent-color:var(--red);margin:0 0 10px;}
+.demo .read{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);}
+.demo .read b{color:var(--red);font-weight:600;}
+
+/* ---------- toc ---------- */
+nav.toc{
+  position:fixed;right:32px;top:50%;transform:translateY(-50%);
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;line-height:2.4;
+  display:none;z-index:50;
+}
+nav.toc a{color:var(--ink-3);border:none;display:block;transition:.15s;}
+nav.toc a:hover{color:var(--red);}
+nav.toc a .bar{display:inline-block;width:16px;height:1px;background:currentColor;vertical-align:middle;margin-right:8px;transition:.15s;}
+nav.toc a:hover .bar{width:24px;}
+
+/* ---------- details ---------- */
+details.gloss{margin:28px 0;border:1px solid var(--line);border-radius:3px;background:#fff;}
+details.gloss summary{
+  cursor:pointer;padding:16px 22px;font-size:14.5px;font-weight:600;list-style:none;
+  display:flex;justify-content:space-between;align-items:center;color:var(--ink);
+}
+details.gloss summary::-webkit-details-marker{display:none;}
+details.gloss summary::after{content:"＋";font-family:var(--mono);color:var(--red);font-size:16px;}
+details.gloss[open] summary::after{content:"－";}
+details.gloss .inner{padding:0 22px 8px;border-top:1px solid var(--line-2);}
+.gitem{padding:14px 0;border-bottom:1px solid var(--line-2);font-size:14px;color:var(--ink-2);line-height:1.75;}
+.gitem:last-child{border-bottom:none;}
+.gitem b{color:var(--ink);font-weight:600;margin-right:6px;}
+
+/* ---------- end ---------- */
+.end{padding:80px 0 60px;border-top:1px solid var(--line-2);text-align:center;}
+.end .q{
+  font-family:var(--serif);font-size:clamp(21px,3vw,29px);line-height:1.75;color:var(--ink);
+  max-width:660px;margin:0 auto 30px;
+}
+.end .q .r{color:var(--red);}
+.end .sig{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;color:var(--ink-3);}
+footer{border-top:1px solid var(--line-2);padding:26px 0 60px;}
+footer p{font-size:12.5px;color:var(--ink-3);line-height:1.9;margin:0;font-family:var(--mono);letter-spacing:.02em;}
+
+/* ---------- reveal ---------- */
+.rv{opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s ease;}
+.rv.in{opacity:1;transform:none;}
+@media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none;}}
+@media print{.rv{opacity:1 !important;transform:none !important;} #bar,nav.toc{display:none;}}
+
+@media (min-width:1240px){nav.toc{display:block;}}
+@media (max-width:760px){
+  body{font-size:16px;line-height:1.8;}
+  .wrap{padding:0 20px;}
+  header.hero{padding:56px 0 40px;}
+  .roles{grid-template-columns:1fr;}
+  .figbox{padding:18px 14px 12px;}
+  .figbox svg{min-width:600px;}
+  figcaption::after{content:"　（示意图可左右滑动）";color:var(--red);opacity:.75;}
+  blockquote{padding:20px 22px;font-size:17px;}
+  .snum{font-size:34px;}
+  section{padding:44px 0;}
+  .warn{padding:4px 18px 12px;}
+  .tbl{font-size:13px;}
+  .tbl th,.tbl td{padding:10px 8px;}
+  .slot{width:40px;height:46px;}
+}
+</style>
+</head>
+<body>
+<div id="bar"></div>
+
+<nav class="toc">
+  <a href="#s1"><span class="bar"></span>慢在哪</a>
+  <a href="#s2"><span class="bar"></span>是什么</a>
+  <a href="#s3"><span class="bar"></span>这笔账</a>
+  <a href="#s4"><span class="bar"></span>两难</a>
+  <a href="#s5"><span class="bar"></span>半自回归</a>
+  <a href="#s6"><span class="bar"></span>置信度调度</a>
+  <a href="#s7"><span class="bar"></span>看到什么</a>
+  <a href="#s8"><span class="bar"></span>聪明在哪</a>
+  <a href="#s9"><span class="bar"></span>别碰它</a>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="col">
+      <div class="kicker">推理加速 · 科普</div>
+      <h1>DSpark<span class="sub">让 AI <span class="pen">少翻几遍字典
+        <svg viewBox="0 0 300 22" preserveAspectRatio="none" aria-hidden="true"><path d="M4 15 C 60 6, 120 19, 176 10 S 262 7, 296 13" fill="none" stroke="#B5341F" stroke-width="2.4" stroke-linecap="round" opacity=".75"/></svg>
+      </span></span></h1>
+      <p class="lead">它不是更聪明的模型。它是同一张显卡、同一份权重、同一段文字——只是把一趟运费装得更满。这篇不写公式、不列榜单，只讲清它靠什么快起来，以及它什么时候根本帮不上忙。</p>
+      <div class="meta">
+        <span class="chip"><b>2026.06.27</b> 开源</span>
+        <span class="chip">DeepSeek × 北京大学</span>
+        <span class="chip">MIT 协议</span>
+        <span class="chip">无损加速</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section id="s1">
+  <div class="col">
+    <div class="shead"><span class="snum">01</span><h2>你等的从来不是「它想不出来」</h2></div>
+    <p>你大概有过这种体验：问 AI 一个不复杂的问题，它明明一秒就想明白了，却还是要一个字一个字地往外蹦。你盯着光标，看它把一句话慢慢挤出来。</p>
+    <p>这时候直觉会告诉你：模型<strong>思考</strong>得慢。</p>
+    <p>其实不是。模型想得很快，它慢在<strong>「写」这个动作</strong>上。</p>
+    <p>要理解这件事，得先知道大模型写字的方式：它每写一个字，都要把整个模型的全部权重，从显存里重新搬进计算单元走一遍。一次搬运，只产出<strong>一个</strong>字。搬完，再搬一遍，产出下一个字。</p>
+    <p>打个比方：一个编辑每写一个字，都得把整本字典从头翻一遍。翻字典花的时间，远比落笔那一下长得多。<em>计算单元大半时间在等货，不是在干活。</em></p>
+    <blockquote>
+      <span class="tag">这道缝</span>
+      <p>这个「每次只写一个字却要翻一整本字典」的结构，就是所有推理加速技术要撬的那道缝。</p>
+    </blockquote>
+    <p>DSpark 是 2026 年 6 月 27 日由 DeepSeek 与北京大学联合发布、并开源的框架。论文标题很技术：《DSpark: Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation》，梁文锋在作者名单里。但它的核心思想，一句话就能说完：</p>
+    <blockquote>
+      <span class="tag">一句话</span>
+      <p>既然翻一遍字典那么贵，那就<strong>一次多写几个字再翻</strong>。</p>
+    </blockquote>
+  </div>
+</section>
+
+<section id="s2">
+  <div class="col">
+    <div class="shead"><span class="snum">02</span><h2>它给现成模型配了一条代笔流水线</h2></div>
+    <p>先澄清一个最容易误会的地方：<strong>DeepSeek-V4-Pro-DSpark 不是新模型。</strong></p>
+    <p>参数没变，权重没变，能力没变。变的是跑法——它在原来的模型旁边，加了一套「先起草、后终审」的流水线。这里面有三个角色：</p>
+  </div>
+
+  <div class="roles">
+    <div class="role r1">
+      <span class="k">TARGET MODEL</span>
+      <span class="n">主编</span>
+      <span class="d">唯一有最终改笔权的人。成稿只认他写下的字，草稿猜错的地方由他擦掉重写。</span>
+    </div>
+    <div class="role r2">
+      <span class="k">DRAFTER</span>
+      <span class="n">代笔快手</span>
+      <span class="d">飞快地猜接下来一串字。猜得再离谱也不要紧，反正有人兜底。</span>
+    </div>
+    <div class="role r3">
+      <span class="k">SCHEDULER</span>
+      <span class="n">发稿台</span>
+      <span class="d">看编辑部忙不忙，决定这一段送几行去审。忙的时候少送，闲的时候多送。</span>
+    </div>
+  </div>
+
+  <div class="col">
+    <p>流程是：快手先猜出一串候选字 → 主编<strong>一次性</strong>把这一串全核一遍 → 从头开始对，对到第一个错的地方停下，错的擦掉由主编重写 → 继续下一轮。</p>
+    <p>因为核对是「一次性看一整段」，翻字典的次数没变，但产出从 1 个字变成了好几个字。这就是全部的收益来源。</p>
+    <p>而且这件事<strong>是无损的</strong>：主编有最终改笔权，快手猜错的地方会被擦掉重写，所以最终成稿和主编亲笔写的一模一样，逐字节相同。加速不等于让模型变笨。</p>
+  </div>
+</section>
+
+<section id="s3">
+  <div class="col">
+    <div class="shead"><span class="snum">03</span><h2>为什么这笔账算得过来</h2></div>
+    <p>这里有个反直觉的点。你可能会想：一次核对 7 个字，计算量不是 7 倍吗？</p>
+    <p>不是。<strong>搬运权重这一步，是一次性的。</strong>权重搬进计算单元后，核对 1 个候选和核对 7 个候选，走的是同一趟搬运。多核几个字，摊的是同一笔运费。</p>
+  </div>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 900 340" role="img" aria-label="对比：传统逐字解码每一遍搬运只产出一个字，推测解码一遍搬运核出一串字">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#8A7E71"/>
+          </marker>
+          <marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#B5341F"/>
+          </marker>
+        </defs>
+
+        <text x="36" y="26" font-family="monospace" font-size="11" fill="#8A7E71" letter-spacing="1.5">传统：写 1 个字 = 翻 1 遍字典</text>
+        <text x="486" y="26" font-family="monospace" font-size="11" fill="#B5341F" letter-spacing="1.5">DSPARK：翻 1 遍 = 核一串字</text>
+
+        <rect x="36" y="50" width="92" height="26" rx="2" fill="#F2EBE0" stroke="#DFD5C6"/>
+        <text x="82" y="67" text-anchor="middle" font-size="10.5" fill="#4A423B">搬运</text>
+        <line x1="132" y1="63" x2="166" y2="63" stroke="#8A7E71" stroke-width="1.2" marker-end="url(#ar)"/>
+        <rect x="172" y="50" width="28" height="26" rx="2" fill="#E4ECF2" stroke="#1E4B6E"/>
+        <text x="186" y="67" text-anchor="middle" font-size="11" fill="#1E4B6E">字</text>
+
+        <rect x="36" y="92" width="92" height="26" rx="2" fill="#F2EBE0" stroke="#DFD5C6"/>
+        <text x="82" y="109" text-anchor="middle" font-size="10.5" fill="#4A423B">搬运</text>
+        <line x1="132" y1="105" x2="166" y2="105" stroke="#8A7E71" stroke-width="1.2" marker-end="url(#ar)"/>
+        <rect x="172" y="92" width="28" height="26" rx="2" fill="#E4ECF2" stroke="#1E4B6E"/>
+        <text x="186" y="109" text-anchor="middle" font-size="11" fill="#1E4B6E">字</text>
+
+        <rect x="36" y="134" width="92" height="26" rx="2" fill="#F2EBE0" stroke="#DFD5C6"/>
+        <text x="82" y="151" text-anchor="middle" font-size="10.5" fill="#4A423B">搬运</text>
+        <line x1="132" y1="147" x2="166" y2="147" stroke="#8A7E71" stroke-width="1.2" marker-end="url(#ar)"/>
+        <rect x="172" y="134" width="28" height="26" rx="2" fill="#E4ECF2" stroke="#1E4B6E"/>
+        <text x="186" y="151" text-anchor="middle" font-size="11" fill="#1E4B6E">字</text>
+
+        <rect x="36" y="176" width="92" height="26" rx="2" fill="#F2EBE0" stroke="#DFD5C6"/>
+        <text x="82" y="193" text-anchor="middle" font-size="10.5" fill="#4A423B">搬运</text>
+        <line x1="132" y1="189" x2="166" y2="189" stroke="#8A7E71" stroke-width="1.2" marker-end="url(#ar)"/>
+        <rect x="172" y="176" width="28" height="26" rx="2" fill="#E4ECF2" stroke="#1E4B6E"/>
+        <text x="186" y="193" text-anchor="middle" font-size="11" fill="#1E4B6E">字</text>
+
+        <rect x="36" y="218" width="92" height="26" rx="2" fill="#F2EBE0" stroke="#DFD5C6"/>
+        <text x="82" y="235" text-anchor="middle" font-size="10.5" fill="#4A423B">搬运</text>
+        <line x1="132" y1="231" x2="166" y2="231" stroke="#8A7E71" stroke-width="1.2" marker-end="url(#ar)"/>
+        <rect x="172" y="218" width="28" height="26" rx="2" fill="#E4ECF2" stroke="#1E4B6E"/>
+        <text x="186" y="235" text-anchor="middle" font-size="11" fill="#1E4B6E">字</text>
+
+        <path d="M226 52 L238 52 L238 242 L226 242" fill="none" stroke="#C9BCA9" stroke-width="1"/>
+        <text x="250" y="140" font-size="12" fill="#4A423B">&#215;5</text>
+        <text x="250" y="157" font-size="10.5" fill="#8A7E71">次搬运</text>
+
+        <text x="36" y="290" font-family="monospace" font-size="12" fill="#4A423B">翻 5 遍 &#8594; 出 5 个字</text>
+
+        <line x1="440" y1="40" x2="440" y2="300" stroke="#EDE5D9" stroke-width="1"/>
+
+        <rect x="486" y="118" width="100" height="44" rx="2" fill="#F7E5DF" stroke="#B5341F"/>
+        <text x="536" y="138" text-anchor="middle" font-size="11" fill="#B5341F">一次性</text>
+        <text x="536" y="154" text-anchor="middle" font-size="11" fill="#B5341F">搬运权重</text>
+
+        <path d="M586 140 L612 140" fill="none" stroke="#B5341F" stroke-width="1.4"/>
+        <path d="M612 82 L612 238" fill="none" stroke="#B5341F" stroke-width="1.4"/>
+        <path d="M612 82 L646 82" fill="none" stroke="#B5341F" stroke-width="1.4" marker-end="url(#arR)"/>
+        <path d="M612 134 L646 134" fill="none" stroke="#B5341F" stroke-width="1.4" marker-end="url(#arR)"/>
+        <path d="M612 186 L646 186" fill="none" stroke="#B5341F" stroke-width="1.4" marker-end="url(#arR)"/>
+        <path d="M612 238 L646 238" fill="none" stroke="#B5341F" stroke-width="1.4" marker-end="url(#arR)"/>
+        <circle cx="612" cy="82" r="2.2" fill="#B5341F"/>
+        <circle cx="612" cy="134" r="2.2" fill="#B5341F"/>
+        <circle cx="612" cy="186" r="2.2" fill="#B5341F"/>
+        <circle cx="612" cy="238" r="2.2" fill="#B5341F"/>
+
+        <rect x="652" y="68" width="30" height="28" rx="2" fill="#E3EFE7" stroke="#2F6B4F"/>
+        <text x="667" y="87" text-anchor="middle" font-size="10" fill="#2F6B4F">&#10003;</text>
+        <rect x="652" y="120" width="30" height="28" rx="2" fill="#E3EFE7" stroke="#2F6B4F"/>
+        <text x="667" y="139" text-anchor="middle" font-size="10" fill="#2F6B4F">&#10003;</text>
+        <rect x="652" y="172" width="30" height="28" rx="2" fill="#E3EFE7" stroke="#2F6B4F"/>
+        <text x="667" y="191" text-anchor="middle" font-size="10" fill="#2F6B4F">&#10003;</text>
+        <rect x="652" y="224" width="30" height="28" rx="2" fill="#F7E5DF" stroke="#B5341F" stroke-dasharray="3 2"/>
+        <path d="M658 231 L676 245 M676 231 L658 245" stroke="#B5341F" stroke-width="1.4"/>
+
+        <text x="696" y="86" font-size="11" fill="#2F6B4F">收下</text>
+        <text x="696" y="138" font-size="11" fill="#2F6B4F">收下</text>
+        <text x="696" y="190" font-size="11" fill="#2F6B4F">收下</text>
+        <text x="696" y="242" font-size="11" fill="#B5341F">擦掉重写</text>
+
+        <text x="486" y="290" font-family="monospace" font-size="12" fill="#B5341F">翻 1 遍 &#8594; 出 4 个字</text>
+        <text x="486" y="312" font-size="10.5" fill="#8A7E71">（被擦掉的那个位置，由主编接着往下写）</text>
+      </svg>
+    </div>
+    <figcaption><b>图 1</b>　决定性的一笔：核对 1 个候选和核对 7 个候选，走的是同一趟搬运。所以这笔账的结构是——运费固定，装得越多越划算。</figcaption>
+  </figure>
+
+  <div class="col">
+    <blockquote>
+      <span class="tag">结构</span>
+      <p>运费固定，装得越多越划算。它的胜负手只有一个——<strong>一轮里能留下几个字</strong>。留得多就快，留得少就白跑一趟。</p>
+    </blockquote>
+  </div>
+</section>
+
+<section id="s4">
+  <div class="col">
+    <div class="shead"><span class="snum">04</span><h2>代笔这件事，难在哪</h2></div>
+    <p>让一个快手替主编起草，听着简单，做起来是个两难。</p>
+    <h3>走法一：一个字一个字写</h3>
+    <p>代表方案是 <strong>Eagle3</strong>。快手像主编一样逐字往后写，每个字都看前面的字，所以猜得准。问题是快手自己也慢——它猜 8 个字要串行跑 8 次，起草的时间把省下来的时间吃回去了。候选越长，越不划算。</p>
+    <h3>走法二：一口气全写出来</h3>
+    <p>代表方案是 <strong>DFlash</strong>、Medusa 这类并行草稿器。一次前向就把接下来所有位置都吐出来，快得离谱。但代价是：<em>每个位置是独立猜的，后面的字看不到前面的字。</em></p>
+    <p>结果就是「越往后越飘」。第一、二个位置还行，到第五个位置基本靠运气——因为前文一变，后面全该变。业界把这叫<strong>后缀衰减</strong>（suffix decay）。</p>
+    <p>举个例子：回复开头「of course」和「no problem」都合理，但纯并行可能给你猜出「of problem」——每个词单看都像那么回事，连起来是句废话。</p>
+  </div>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 900 330" role="img" aria-label="示意图：纯并行草稿器随位置推移接受率急剧下降，半自回归下降缓慢，串行草稿器保持高位">
+        <text x="90" y="26" font-family="monospace" font-size="10.5" fill="#8A7E71">接受率</text>
+        <text x="78" y="44" text-anchor="end" font-family="monospace" font-size="10" fill="#B3A899">100%</text>
+        <text x="78" y="164" text-anchor="end" font-family="monospace" font-size="10" fill="#B3A899">50%</text>
+        <text x="78" y="284" text-anchor="end" font-family="monospace" font-size="10" fill="#B3A899">0</text>
+
+        <line x1="90" y1="40" x2="820" y2="40" stroke="#F0E9DE" stroke-width="1"/>
+        <line x1="90" y1="160" x2="820" y2="160" stroke="#F0E9DE" stroke-width="1"/>
+        <g stroke="#F0E9DE" stroke-width="1" stroke-dasharray="2 5">
+          <line x1="211" y1="40" x2="211" y2="280"/>
+          <line x1="332" y1="40" x2="332" y2="280"/>
+          <line x1="453" y1="40" x2="453" y2="280"/>
+          <line x1="574" y1="40" x2="574" y2="280"/>
+          <line x1="695" y1="40" x2="695" y2="280"/>
+          <line x1="816" y1="40" x2="816" y2="280"/>
+        </g>
+        <line x1="90" y1="280" x2="820" y2="280" stroke="#D9CDBB" stroke-width="1"/>
+        <line x1="90" y1="40" x2="90" y2="280" stroke="#D9CDBB" stroke-width="1"/>
+
+        <g font-family="monospace" font-size="10" fill="#B3A899" text-anchor="middle">
+          <text x="90" y="302">1</text><text x="211" y="302">2</text><text x="332" y="302">3</text>
+          <text x="453" y="302">4</text><text x="574" y="302">5</text><text x="695" y="302">6</text><text x="816" y="302">7</text>
+        </g>
+        <text x="820" y="324" text-anchor="end" font-family="monospace" font-size="10" fill="#B3A899">草稿位置 &#8594;</text>
+
+        <path d="M90 58 L211 62 L332 66 L453 72 L574 78 L695 86 L816 96" fill="none" stroke="#2F6B4F" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M90 60 L211 86 L332 112 L453 138 L574 160 L695 180 L816 198" fill="none" stroke="#1E4B6E" stroke-width="2.8" stroke-linecap="round"/>
+        <path d="M90 64 L211 124 L332 182 L453 228 L574 256 L695 270 L816 278" fill="none" stroke="#B5341F" stroke-width="2.8" stroke-linecap="round" stroke-dasharray="6 3"/>
+
+        <text x="104" y="52" font-size="10.5" fill="#2F6B4F" font-family="monospace">串行</text>
+        <text x="620" y="248" font-size="10.5" fill="#B5341F" font-family="monospace">后缀衰减</text>
+      </svg>
+      <div class="lg">
+        <span class="g"><i></i>逐字串行 —— 准，但起草本身就慢</span>
+        <span class="b"><i></i>半自回归（DSpark）</span>
+        <span class="r"><i></i>纯并行 —— 快，但越往后越飘</span>
+      </div>
+    </div>
+    <figcaption><b>图 2</b>　<b>示意曲线，非实测数据。</b>重点是形状而不是刻度：纯并行在后段几乎归零，串行一直很稳但跑得慢，半自回归卡在两者之间——用很小的起草代价，换掉大半的衰减。</figcaption>
+  </figure>
+
+  <div class="col">
+    <table class="tbl">
+      <caption>四条草稿路线 · 一张表看完这笔纠结</caption>
+      <thead>
+        <tr><th>方案</th><th>起草方式</th><th>强项</th><th>短板</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="name">MTP</td>
+          <td>主模型自带的几个预测头</td>
+          <td>工程最简单，跟主模型长在一起</td>
+          <td>一轮蹦不了几个字，天花板低</td>
+        </tr>
+        <tr>
+          <td class="name">Eagle3</td>
+          <td>小模型逐字串行写</td>
+          <td>准，接受率高</td>
+          <td>起草本身就慢，只适合短块</td>
+        </tr>
+        <tr>
+          <td class="name">DFlash</td>
+          <td>一次并行吐出一整块</td>
+          <td>快</td>
+          <td>后缀衰减，越往后越不靠谱</td>
+        </tr>
+        <tr class="hi">
+          <td class="name">DSpark</td>
+          <td>并行起草 + 轻量串行修正</td>
+          <td>又快又准</td>
+          <td>训练和部署更复杂</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>看清这张表，你就理解了推测解码这些年的全部纠结：<em>要快就得并行，要准就得串行，鱼和熊掌。</em></p>
+    <p>DSpark 的答案不是二选一，是「先并行，再补一道工序」。</p>
+  </div>
+</section>
+
+<section id="s5">
+  <div class="col">
+    <div class="shead"><span class="snum">05</span><h2>第一招 · 先并排赶稿，再顺一遍</h2></div>
+    <p>DSpark 的起草分两步。</p>
+    <h3>第一步，并行主干</h3>
+    <p>一次前向，把所有候选位置的基础输出和隐藏状态全部吐出来。这一步保留了纯并行方案的速度优势，块长拉得开。</p>
+    <h3>第二步，轻量串行模块</h3>
+    <p>在这堆并行结果之上，加一个极小的顺序单元。论文给了两种实现：默认的<strong>马尔可夫头</strong>（只看前一个 token，一次 r=256 的低秩矩阵乘），和更重的 RNN 头（维护块内状态）。两者都不是 Transformer，就是一次线性变换。它要做的也只有一件事：给每个位置补上「前一个词是什么」这个信息，把并排猜出来的字顺着顺序接起来。</p>
+    <p>用编辑部的话说：不是一个房间十个人各写各的再拼起来，而是主干一口气把整页十个位置都铺满（彼此能看见，但没有先后）。然后一位<strong>连贯性校对</strong>从第一行往下走，每走到一行，就把上一行<strong>实际写定的字</strong>念给自己听，只改这一行的接续。他不重写、不改结构，<strong>也不回头改已经定稿的前文</strong>——正因为只看前一位、只动一处，他几乎不拖慢进度。</p>
+  </div>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 900 250" role="img" aria-label="半自回归两阶段：并行主干一次产出全部位置，轻量串行头逐个补齐前文依赖">
+        <defs>
+          <marker id="arG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#2F6B4F"/>
+          </marker>
+        </defs>
+        <text x="40" y="24" font-family="monospace" font-size="10.5" fill="#1E4B6E" letter-spacing="1.2">阶段一 · 并行主干</text>
+        <text x="470" y="24" font-family="monospace" font-size="10.5" fill="#2F6B4F" letter-spacing="1.2">阶段二 · 轻量串行头</text>
+        <line x1="440" y1="34" x2="440" y2="200" stroke="#EDE5D9" stroke-width="1"/>
+
+        <rect x="40" y="42" width="320" height="78" rx="3" fill="#EFF5F9" stroke="#B9CEDD"/>
+        <text x="52" y="64" font-size="11.5" fill="#1E4B6E">一次前向，四个位置同时出结果</text>
+        <rect x="52" y="76" width="64" height="30" rx="2" fill="#fff" stroke="#1E4B6E"/>
+        <text x="84" y="96" text-anchor="middle" font-size="10.5" fill="#1E4B6E">p1</text>
+        <rect x="128" y="76" width="64" height="30" rx="2" fill="#fff" stroke="#1E4B6E"/>
+        <text x="160" y="96" text-anchor="middle" font-size="10.5" fill="#1E4B6E">p2</text>
+        <rect x="204" y="76" width="64" height="30" rx="2" fill="#fff" stroke="#1E4B6E"/>
+        <text x="236" y="96" text-anchor="middle" font-size="10.5" fill="#1E4B6E">p3</text>
+        <rect x="280" y="76" width="64" height="30" rx="2" fill="#fff" stroke="#1E4B6E"/>
+        <text x="312" y="96" text-anchor="middle" font-size="10.5" fill="#1E4B6E">p4</text>
+
+        <text x="470" y="64" font-size="11.5" fill="#2F6B4F">逐个位置补上「前一个词是什么」</text>
+        <rect x="470" y="76" width="56" height="30" rx="2" fill="#E3EFE7" stroke="#2F6B4F"/>
+        <text x="498" y="96" text-anchor="middle" font-size="10.5" fill="#2F6B4F">p1</text>
+        <rect x="556" y="76" width="56" height="30" rx="2" fill="#E3EFE7" stroke="#2F6B4F"/>
+        <text x="584" y="96" text-anchor="middle" font-size="10.5" fill="#2F6B4F">p2</text>
+        <rect x="642" y="76" width="56" height="30" rx="2" fill="#E3EFE7" stroke="#2F6B4F"/>
+        <text x="670" y="96" text-anchor="middle" font-size="10.5" fill="#2F6B4F">p3</text>
+        <rect x="728" y="76" width="56" height="30" rx="2" fill="#E3EFE7" stroke="#2F6B4F"/>
+        <text x="756" y="96" text-anchor="middle" font-size="10.5" fill="#2F6B4F">p4</text>
+        <path d="M528 91 L552 91" fill="none" stroke="#2F6B4F" stroke-width="1.2" marker-end="url(#arG)"/>
+        <path d="M614 91 L638 91" fill="none" stroke="#2F6B4F" stroke-width="1.2" marker-end="url(#arG)"/>
+        <path d="M700 91 L724 91" fill="none" stroke="#2F6B4F" stroke-width="1.2" marker-end="url(#arG)"/>
+
+        <text x="40" y="156" font-size="12" fill="#4A423B">快，但后段不知道前段写了什么。</text>
+        <text x="40" y="180" font-size="12" fill="#B5341F">&#8594; 这就是后缀衰减的源头。</text>
+
+        <text x="470" y="156" font-size="12" fill="#4A423B">准，但每个位置都要等前一个。</text>
+        <text x="470" y="180" font-size="12" fill="#2F6B4F">&#8594; 只要 2 层就够，几乎不占时间。</text>
+
+        <line x1="40" y1="204" x2="860" y2="204" stroke="#EDE5D9" stroke-width="1"/>
+        <text x="40" y="230" font-size="12.5" fill="#1A1714">半自回归 = 用并行拿速度，用一点点串行换准确。</text>
+      </svg>
+    </div>
+    <figcaption><b>图 3</b>　两个阶段的分工：主干负责「一次写完」，串行头负责「接得起来」。贵的部分留给并行，依赖关系交给一个极轻的补丁。</figcaption>
+  </figure>
+
+  <div class="col">
+    <p>这里最漂亮的一点是<strong>性价比</strong>：论文报告，草稿主干只堆 2 层，有效接受长度就超过了堆 5 层的纯并行方案。补依赖这件事不需要堆层数，一个轻的头就够。而且块越长优势越明显——块长从 7 拉到 15，差距还在扩大。</p>
+    <blockquote>
+      <span class="tag">换句话说</span>
+      <p>并行架构一直有「长块」的潜力，此前被后缀衰减封着。<strong>半自回归把这层封印揭了。</strong></p>
+    </blockquote>
+    <p>代价也得说清楚：多了串行模块，训练流程和部署形态都更复杂，这不是「改个配置」能解决的事。</p>
+  </div>
+</section>
+
+<section id="s6">
+  <div class="col">
+    <div class="shead"><span class="snum">06</span><h2>第二招 · 别把注定被退的稿送审</h2></div>
+    <p>第一招解决「草稿准不准」，第二招解决「验证算力别浪费」。</p>
+    <p>传统推测解码是<strong>固定验证长度</strong>：每个请求都验 8 个候选。问题在于，真实并发下每个请求的草稿质量天差地别。有的请求验 8 个能留 7 个，划算；有的验 8 个只留 2 个，剩下 6 个名额纯属陪跑。</p>
+    <p>而在高并发系统里，验证名额是<strong>稀缺资源</strong>。把名额花在注定被拒的候选上，不是「浪费了一点算力」，是把整个系统的吞吐往下拖。</p>
+    <h3>第一层：置信度头</h3>
+    <p>在起草模块上加一个轻量打分器。每生成一个候选字，它就估一个分：<strong>假如前面都被接受了，这个字能活下来的概率有多大。</strong></p>
+    <p>但这里有个坑——AI 给自己打分天生偏乐观，估出来的通过率系统性偏高。所以 DSpark 配了一个叫<strong>顺序温度缩放</strong>（STS）的校准步骤，把这些自评分掰回到真实接受率上。校准后预测误差从 3%~8% 压到大约 1%。</p>
+    <p>这一步看着不起眼，其实是整套调度的地基：<em>分数不准，后面所有的动态决策都是瞎调。</em></p>
+    <h3>第二层：硬件感知的动态调度</h3>
+    <p>有了可靠的存活概率，调度器就可以算一道更实际的题：在当前的并发压力下，这个请求验多长，才能让<strong>全局</strong>吞吐最大？</p>
+    <p>它手里有两样东西：一是所有并发请求的置信度分布，二是预先测好的引擎吞吐曲线（这个引擎在什么并发下、什么块长时表现最好）。然后把「每个请求分多少验证长度」当成一个全局优化问题来解，贪心地分下去。</p>
+  </div>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 900 300" role="img" aria-label="示意图：低并发时拉长验证块吃满算力，高并发时裁掉低价值候选稳住总吞吐">
+        <text x="30" y="24" font-family="monospace" font-size="10.5" fill="#8A7E71" letter-spacing="1.2">同一个引擎，两种负载，两种策略</text>
+
+        <text x="30" y="62" font-size="12" fill="#2F6B4F">低并发 &#183; 算力有富余</text>
+        <rect x="30" y="74" width="380" height="34" rx="2" fill="#E3EFE7" stroke="#2F6B4F"/>
+        <rect x="30" y="74" width="342" height="34" rx="2" fill="#2F6B4F" opacity=".13"/>
+        <text x="46" y="96" font-size="11" fill="#2F6B4F">验证块拉长 &#8594; 一次多留几个字</text>
+        <text x="30" y="130" font-size="11.5" fill="#4A423B">目标：单用户速度拉满。空转的算力不用，就是白扔。</text>
+
+        <text x="470" y="62" font-size="12" fill="#B5341F">高并发 &#183; 验证名额是抢手货</text>
+        <rect x="470" y="74" width="380" height="34" rx="2" fill="#F7E5DF" stroke="#B5341F"/>
+        <rect x="470" y="74" width="150" height="34" rx="2" fill="#B5341F" opacity=".16"/>
+        <text x="486" y="96" font-size="11" fill="#B5341F">只验高置信度</text>
+        <text x="640" y="96" font-size="11" fill="#B5341F">裁掉大概率被拒的</text>
+        <text x="470" y="130" font-size="11.5" fill="#4A423B">目标：整体吞吐不塌。少留一个字，好过拖垮队列。</text>
+
+        <line x1="30" y1="152" x2="860" y2="152" stroke="#EDE5D9" stroke-width="1"/>
+
+        <text x="30" y="190" font-size="12" fill="#8A7E71">固定块长</text>
+        <rect x="130" y="172" width="300" height="30" rx="2" fill="#F7E5DF"/>
+        <text x="146" y="191" font-size="11" fill="#B5341F">低负载：算力在空转</text>
+        <rect x="450" y="172" width="300" height="30" rx="2" fill="#F7E5DF"/>
+        <text x="466" y="191" font-size="11" fill="#B5341F">高负载：队列开始抖</text>
+
+        <text x="30" y="244" font-size="12" fill="#2F6B4F">动态调度</text>
+        <rect x="130" y="226" width="300" height="30" rx="2" fill="#E3EFE7"/>
+        <text x="146" y="245" font-size="11" fill="#2F6B4F">低负载：把速度拉满</text>
+        <rect x="450" y="226" width="300" height="30" rx="2" fill="#E3EFE7"/>
+        <text x="466" y="245" font-size="11" fill="#2F6B4F">高负载：把吞吐稳住</text>
+
+        <text x="30" y="286" font-size="11.5" fill="#8A7E71">同一张卡、同一份权重，唯一区别是「该验多长」每一秒都在重算。</text>
+      </svg>
+    </div>
+    <figcaption><b>图 4</b>　草稿质量决定「能不能快」，调度决定「快得起来多少」。绝大多数解读稿把功劳全给了草稿器，其实后者才是生产环境的分水岭。</figcaption>
+  </figure>
+
+  <div class="col">
+    <div class="demo">
+      <div class="h">动手试 · 一轮能留下几个字？</div>
+      <div class="slots" id="slots">
+        <div class="slot on"><span class="mark">&#10003;</span>p1</div>
+        <div class="slot on"><span class="mark">&#10003;</span>p2</div>
+        <div class="slot on"><span class="mark">&#10003;</span>p3</div>
+        <div class="slot on"><span class="mark">&#10003;</span>p4</div>
+        <div class="slot on"><span class="mark">&#10003;</span>p5</div>
+        <div class="slot cut"><span class="mark">&#10007;</span>p6</div>
+        <div class="slot cut"><span class="mark">&#10007;</span>p7</div>
+      </div>
+      <input type="range" id="rate" min="30" max="100" value="70" step="1" aria-label="草稿接受率">
+      <div class="read">
+        <span>草稿接受率 <b id="rv">70%</b></span>
+        <span>本轮留下 <b id="keep">5</b> / 7 个字</span>
+      </div>
+    </div>
+    <p style="font-size:13.5px;color:var(--ink-3);margin-top:-12px;">滑动看看：接受率往下掉一点，留下字数掉得比你想的快。这就是为什么「提高接受长度」和「少验废稿」值得被当成两个独立问题去攻。</p>
+
+    <blockquote>
+      <span class="tag">反直觉</span>
+      <p>SLA 收得越紧，DSpark 的相对收益越大。因为约束越严，传统方案越容易让 GPU 空转——而这些碎片算力，正好被动态调度捡起来。</p>
+    </blockquote>
+  </div>
+</section>
+
+<section id="s7">
+  <div class="col">
+    <div class="shead"><span class="snum">07</span><h2>你会看到什么</h2></div>
+    <p>官方口径分两个层面。第一层是<strong>同等吞吐下，单用户更快</strong>：部署在 DeepSeek-V4-Flash 与 V4-Pro 线上服务、替代上一代 MTP-1 基线之后，Flash 单用户生成速度提升 60%~85%，Pro 提升 57%~78%。用户侧的感受是「跟手了」，长回答不用干等。</p>
+    <p>第二层是<strong>同等速度下，能扛更多并发</strong>：在把单用户速度锁死在 120 token/s 这种严苛条件下的那一档，传统基线已经贴到天花板，DSpark 还能维持可观的服务量级。这一档的差距是数倍级的。</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><span class="v">60–85%</span><span class="l">V4-Flash 单用户生成速度提升（同等系统吞吐下）</span></div>
+    <div class="stat"><span class="v">57–78%</span><span class="l">V4-Pro 单用户生成速度提升（同等系统吞吐下）</span></div>
+    <div class="stat"><span class="v small">3~8% &#8594; ~1%</span><span class="l">置信度打分的预测误差，经 STS 校准后</span></div>
+    <div class="stat"><span class="v small">2 层 &gt; 5 层</span><span class="l">草稿主干 2 层 vs 纯并行的 5 层堆叠，比的是接受长度</span></div>
+  </div>
+
+  <div class="col">
+    <p>还有一个<strong>领域差异</strong>值得注意：数学推理、代码生成这类结构化强的任务，接受长度明显更高；开放闲聊的相对低。这不是缺陷，反而印证了「固定验证长度」的先天问题——不同请求的最优块长本来就不一样。</p>
+    <p>更值得一提的是，这套方法不是 DeepSeek 自家模型的专属调优。开源仓库 DeepSpec 里直接给了 Qwen3-4B/8B/14B 和 Gemma4-12B 的配置，接受长度同样优于 Eagle3 和 DFlash。2026 年 8 月，Liquid AI 和 Hugging Face 也放出了自家 LFM2.5 系列的 DSpark 草稿检查点。</p>
+    <p>对使用方来说，这才是它真正的意义：<em>推测解码从「各家自研秘方」，变成了可以照着复现的标准方法。</em></p>
+  </div>
+</section>
+
+<section id="s8">
+  <div class="col">
+    <div class="shead"><span class="snum">08</span><h2>它聪明在哪</h2></div>
+
+    <h3>一、它赢在「更会花」，不是「更强」</h3>
+    <p>这是整件事最容易被误读的地方。DSpark 没有让模型变聪明一个百分点，它只是在同样的显卡、同样的权重上，把每一趟运费装得更满。所以它的价值直接体现在服务器账单上，而不是榜单分数上。</p>
+
+    <h3>二、它把「调度」当成一等公民</h3>
+    <p>绝大多数推测解码论文的主角是草稿器，调度是附赠的实现细节。DSpark 反过来——论文标题里 <code>Confidence-Scheduled</code> 排在 <code>Semi-Autoregressive</code> 前面，说明作者认为<strong>真正把线上吞吐翻上去的是调度</strong>，草稿质量只是入场券。</p>
+
+    <h3>三、它把草稿模块做成了模型的一部分</h3>
+    <p>官方发布的 checkpoint 里，草稿模块和目标权重绑在一起发，不需要你单独管一个外挂小模型。部署时 vLLM 加一个参数、SGLang 加一个开关就能开：</p>
+  </div>
+
+  <figure>
+    <div class="figbox" style="padding:20px 24px;">
+      <div style="font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--ink-3);margin-bottom:14px;">开启方式 · 2026 年 7 月起原生支持</div>
+      <div style="font-family:var(--mono);font-size:12.5px;line-height:2;color:var(--ink-2);white-space:pre;overflow-x:auto;"><span style="color:var(--ink-3)"># vLLM</span>
+vllm serve &lt;model&gt; --trust-remote-code \
+  --speculative-config <span style="color:var(--red)">'{"method":"dspark","num_speculative_tokens":7}'</span>
+
+<span style="color:var(--ink-3)"># SGLang</span>
+python -m sglang.launch_server --model-path &lt;model&gt; \
+  <span style="color:var(--red)">--speculative-algorithm DSPARK</span></div>
+    </div>
+    <figcaption><b>代码 1</b>　注意 <code>method</code> 要写 <code>dspark</code> 而不是 <code>mtp</code>——写错会去走单阶段的 MTP 路径，然后在权重键上直接崩掉。</figcaption>
+  </figure>
+
+  <div class="col">
+    <p>推测解码从「服务层技巧」变成了「模型自带属性」，这是它真正降低门槛的地方——不需要为一套加速方案再维护一个独立的小模型。</p>
+  </div>
+</section>
+
+<section id="s9">
+  <div class="col">
+    <div class="shead"><span class="snum">09</span><h2>什么时候别碰它</h2></div>
+    <p>科普不是软文。这一节比前面所有节都重要。</p>
+  </div>
+
+  <div class="col">
+    <div class="warn">
+      <div class="item">
+        <b>它只优化 decode，不优化 prefill</b>
+        <p>它让「逐字往外写」变快，但对你塞进去的超长 prompt、百万 token 的上下文加载、KV cache 的显存压力，一点忙都帮不上。如果你的瓶颈在「读」而不是「写」，DSpark 不是解药。</p>
+      </div>
+      <div class="item">
+        <b>输出太短就没什么收益</b>
+        <p>加速的前提是起草开销能被摊薄。有实测反馈，生成长度在 512 token 以下时，收益可能掉到 20% 以内——短回答场景体感很弱。</p>
+      </div>
+      <div class="item">
+        <b>草稿要为目标模型单独训练</b>
+        <p>不是「给任意模型加个参数就能用」。你要么用官方放出的 checkpoint，要么自己训一个。自训门槛不低：DeepSpec 默认配置构建目标模型缓存就要几十 TB 存储，默认单机 8 卡起。这是厂商级流程，不是个人 demo。</p>
+      </div>
+      <div class="item">
+        <b>显存会涨</b>
+        <p>草稿模块要和目标模型同时在显存里常驻。批量服务时这部分开销能被摊薄，但单序列、延迟敏感的场景就是实打实的成本。</p>
+      </div>
+      <div class="item">
+        <b>引擎版本和量化格式会绊人</b>
+        <p>原生支持是 2026 年 7 月才陆续进 vLLM 和 SGLang 的，早期版本认不出这个草稿器；社区量化版（尤其带 block-scale 的那类）还可能触发权重绑定的兼容性 bug。上线前务必拿自己的 checkpoint 和引擎版本实测，别照抄别人的命令。</p>
+      </div>
+      <div class="item">
+        <b>确定性推理和它可能要二选一</b>
+        <p>某些引擎里，为保证批不变性（同样输入在任何并发下输出完全一致），会关掉推测解码的加速路径。可复现和更快，往往得挑一个。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <p style="font-size:15px;color:var(--ink-2);">所以最现实的分法是：<strong>做大模型线上服务的团队</strong>，值得立刻评估它——收益直接落在账单上；<strong>个人开发者、本地跑模型的人</strong>，短期体感不到好处，盯着推理引擎的适配进度就行。</p>
+  </div>
+</section>
+
+<section id="s10">
+  <div class="col">
+    <div class="shead"><span class="snum">10</span><h2>几个容易混淆的地方</h2></div>
+  </div>
+  <div class="col">
+    <details class="gloss" open>
+      <summary>DSpark 和「换一个更小的模型」有什么区别？</summary>
+      <div class="inner">
+        <div class="gitem"><b>结论</b>完全不同。换小模型是换人——能力实打实下降；DSpark 是给同一个主编配了代笔，成稿逐字节一致，能力一点没丢。</div>
+        <div class="gitem"><b>为什么</b>因为主编保留了最终改笔权。草稿被否决的地方会由目标模型重写，所以输出分布严格不变。</div>
+      </div>
+    </details>
+    <details class="gloss">
+      <summary>MTP 和推测解码是一回事吗？</summary>
+      <div class="inner">
+        <div class="gitem"><b>不是</b>MTP 是让主模型自己多长几个「预测头」，训练时还能帮主模型学会往前看；推测解码是外挂一个草稿器。前者工程简单但天花板低，是 DeepSeek 上一代的生产基线。</div>
+        <div class="gitem"><b>关系</b>DSpark 实际上是 MTP 的替代者，而它的草稿模块又是挂在目标模型上的——算是一种「升级版的自带草稿」。</div>
+      </div>
+    </details>
+    <details class="gloss">
+      <summary>「无损」是无损到什么程度？</summary>
+      <div class="inner">
+        <div class="gitem"><b>逐字节一致</b>不是「效果差不多」，是在同样的采样参数下，输出和不用 DSpark 时完全相同。所以在生产环境可以直接开，不需要做质量回归。</div>
+      </div>
+    </details>
+    <details class="gloss">
+      <summary>为什么加速数字一会儿说 60%，一会儿说 6 倍？</summary>
+      <div class="inner">
+        <div class="gitem"><b>说的是两件事</b>60%~85% 是「同等吞吐下，单个用户变快多少」；数倍级那个是「同等速度下，系统能多扛多少并发」。前者是体感，后者是成本。</div>
+        <div class="gitem"><b>看数技巧</b>凡是加速比数字，先问它锁死了哪个约束。SLA 收得越紧，吞吐提升的比例就越夸张。</div>
+      </div>
+    </details>
+  </div>
+</section>
+
+</main>
+
+<div class="wrap">
+  <div class="end">
+    <div class="q">让快手先起草，让高手只做终审。<br>快不是因为<span class="r">想得更快</span>，<br>是因为<span class="r">少翻了几遍字典</span>。</div>
+    <div class="sig">DSPARK · 2026</div>
+  </div>
+  <footer>
+    <p>事实口径以 DeepSeek 官方博客、论文《DSpark: Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation》及 DeepSpec 开源仓库为准；不同来源对线上加速数字的表述略有出入，具体以官方发布为准。图 2 为示意曲线，不代表实测数据。</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var bar = document.getElementById('bar');
+  function onScroll(){
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    var p = max > 0 ? (h.scrollTop || document.body.scrollTop) / max : 0;
+    bar.style.width = (p * 100).toFixed(2) + '%';
+  }
+  window.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+
+  var els = document.querySelectorAll('section, figure, blockquote, .role, .stat, table.tbl');
+  if ('IntersectionObserver' in window) {
+    els.forEach(function(el){ el.classList.add('rv'); });
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, {rootMargin:'0px 0px -8% 0px', threshold:0.08});
+    els.forEach(function(el){ io.observe(el); });
+    // 保险：无论观察器是否触发，2 秒后全部显示，避免任何环境下出现空白段
+    setTimeout(function(){ els.forEach(function(el){ el.classList.add('in'); }); }, 2000);
+  }
+
+  var slots = Array.prototype.slice.call(document.querySelectorAll('#slots .slot'));
+  var rate = document.getElementById('rate');
+  var rv = document.getElementById('rv');
+  var keep = document.getElementById('keep');
+  function paint(){
+    var pct = parseInt(rate.value, 10);
+    var n = Math.max(1, Math.round(pct / 100 * slots.length));
+    slots.forEach(function(s, i){
+      var ok = i < n;
+      s.classList.toggle('on', ok);
+      s.classList.toggle('cut', !ok);
+      s.querySelector('.mark').textContent = ok ? '\u2713' : '\u2717';
+    });
+    rv.textContent = pct + '%';
+    keep.textContent = n;
+  }
+  if (rate) { rate.addEventListener('input', paint); paint(); }
+})();
+</script>
+</body>
+</html>
