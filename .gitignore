@@ -1,0 +1,9 @@
+# 状态与日志：只在本地，不发布
+.state/
+
+# 栏目清单：本地组织信息，不发布
+collections/
+
+# 系统杂项
+.DS_Store
+Thumbs.db
