@@ -38,6 +38,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -306,6 +307,10 @@ def git_sync(cfg: dict) -> dict:
         return {"committed": False, "pushed": False,
                 "detail": (commit.stderr or commit.stdout).strip()[:400]}
     push = run(["git", "push", cfg["git_remote"], cfg["git_branch"]])
+    if push.returncode != 0:
+        # 只对网络抖动重试一次；鉴权失败、冲突这类重试也没用，直接报
+        time.sleep(3)
+        push = run(["git", "push", cfg["git_remote"], cfg["git_branch"]])
     if push.returncode != 0:
         return {"committed": True, "pushed": False,
                 "detail": f"push 失败：{(push.stderr or push.stdout).strip()[:400]}"}
