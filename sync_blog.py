@@ -325,14 +325,22 @@ def git_sync(cfg: dict) -> dict:
     if commit.returncode != 0:
         return {"committed": False, "pushed": False,
                 "detail": (commit.stderr or commit.stdout).strip()[:400]}
-    push = run(["git", "push", cfg["git_remote"], cfg["git_branch"]])
-    if push.returncode != 0:
-        # 只对网络抖动重试一次；鉴权失败、冲突这类重试也没用，直接报
-        time.sleep(3)
+    push = None
+    for attempt, wait in enumerate((0, 5, 15), start=1):
+        if wait:
+            time.sleep(wait)
         push = run(["git", "push", cfg["git_remote"], cfg["git_branch"]])
+        if push.returncode == 0:
+            break
+        err = (push.stderr or push.stdout).strip()
+        # 只有网络/ TLS 类错误值得重试；鉴权失败、non-fast-forward 重试也没用
+        if not any(k in err.lower() for k in ("handshake", "could not resolve",
+                                              "connection", "timed out", "timeout",
+                                              "unable to access")):
+            break
     if push.returncode != 0:
         return {"committed": True, "pushed": False,
-                "detail": f"push 失败：{(push.stderr or push.stdout).strip()[:400]}"}
+                "detail": f"push 失败（重试 {attempt} 次）：{(push.stderr or push.stdout).strip()[:400]}"}
     return {"committed": True, "pushed": True, "detail": f"提交并推送 {n} 个文件"}
 
 
