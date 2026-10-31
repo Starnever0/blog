@@ -165,14 +165,21 @@ def save_manifest(data: dict) -> None:
     MANIFEST.write_text(head + body, encoding="utf-8")
 
 
-def ensure_entries(manifest: dict, pages: dict[str, Path]) -> list[str]:
-    """把没入册的页面补进去。已存在的条目一个字段都不动——collection 是人的判断。"""
+def reconcile_entries(manifest: dict, pages: dict[str, Path]) -> tuple[list[str], list[str], list[str]]:
+    """让 manifest 的 pages 和磁盘上的实际文件严格对齐。
+
+    - 新增：磁盘上有、manifest 没有的，补一条，collection 默认 null
+    - 摘除：manifest 有、磁盘上已不存在的，删掉这条。否则首页会挂一个 404 死链
+    - 刷新：title / date 按文件重新算（这两个字段是派生值，不是人的判断）
+
+    **唯一不动的是 collection**——分类是人看过之后下的判断，脚本绝不覆盖。
+    """
+    live = {p.relative_to(ROOT).as_posix(): p for p in pages.values()}
     known = {e.get("file") for e in manifest["pages"]}
-    added = []
-    for name, path in pages.items():
-        rel = path.relative_to(ROOT).as_posix()
-        if rel in known:
-            continue
+
+    added = [rel for rel in live if rel not in known]
+    for rel in added:
+        path = live[rel]
         manifest["pages"].append({
             "slug": path.stem,
             "title": title_of(path),
@@ -180,10 +187,20 @@ def ensure_entries(manifest: dict, pages: dict[str, Path]) -> list[str]:
             "file": rel,
             "collection": None,
         })
-        added.append(rel)
-    if added:
-        manifest["pages"].sort(key=lambda e: (e.get("date") or "", e.get("file") or ""))
-    return added
+
+    pruned = [e["file"] for e in manifest["pages"] if e.get("file") and e["file"] not in live]
+    manifest["pages"] = [e for e in manifest["pages"] if e.get("file") in live]
+
+    refreshed = []
+    for entry in manifest["pages"]:
+        path = live[entry["file"]]
+        new_title, new_date = title_of(path), date_of(path)
+        if entry.get("title") != new_title or entry.get("date") != new_date:
+            entry["title"], entry["date"] = new_title, new_date
+            refreshed.append(entry["file"])
+
+    manifest["pages"].sort(key=lambda e: (e.get("date") or "", e.get("file") or ""))
+    return added, pruned, refreshed
 
 
 # ---------------------------------------------------------------- 生成页面
@@ -458,13 +475,19 @@ def main() -> int:
     print(f"仓库  {repo}")
     print(f"单页  {len(pages)} 个\n")
 
-    added = []
+    added, pruned, refreshed = [], [], []
     if not args.check:
-        added = ensure_entries(manifest, pages)
-        if added:
+        added, pruned, refreshed = reconcile_entries(manifest, pages)
+        if added or pruned or refreshed:
             save_manifest(manifest)
     if added:
-        print(f"新入册 {len(added)} 条：{', '.join(added)}\n")
+        print(f"新入册 {len(added)} 条：{', '.join(added)}")
+    if pruned:
+        print(f"摘除 {len(pruned)} 条（文件已不存在，避免首页死链）：{', '.join(pruned)}")
+    if refreshed:
+        print(f"刷新 {len(refreshed)} 条标题/日期：{', '.join(refreshed)}")
+    if added or pruned or refreshed:
+        print()
 
     built: list[str] = []
     if args.build_collections and not args.check:
