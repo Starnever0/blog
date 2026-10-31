@@ -318,7 +318,7 @@ def git_sync(cfg: dict) -> dict:
     run(["git", "add", "-A"])
     status = run(["git", "status", "--porcelain"]).stdout.strip()
     if not status:
-        return {"committed": False, "pushed": False, "detail": "工作区无变化"}
+        return {"committed": False, "pushed": False, "noop": True, "detail": "工作区无变化"}
     n = len([l for l in status.splitlines() if l.strip()])
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     commit = run(["git", "commit", "-m", f"sync: {n} 个文件 · {stamp}"])
@@ -656,7 +656,8 @@ def main() -> int:
         for f in wiki_info.get("failed") or []:
             print(f"        ! {f}")
 
-    if not args.check and (git_info.get("pushed") or args.no_git):
+    git_ok = bool(git_info.get("pushed") or git_info.get("noop") or args.no_git)
+    if not args.check and git_ok:
         for name, path in pages.items():
             state.setdefault("pages", {})[name] = {
                 "sha": sha_of(path),
@@ -668,7 +669,7 @@ def main() -> int:
     elif not args.check:
         print("GitHub 未推送成功，基线保持不动——下次会重新报这批文件。")
 
-    ok = args.check or git_info.get("pushed") or args.no_git
+    ok = args.check or git_ok
     return 0 if ok and feishu_info.get("ok") else 1
 
 
