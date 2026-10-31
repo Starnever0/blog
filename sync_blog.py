@@ -499,8 +499,9 @@ def feishu_wiki_sync(cfg: dict, pages: dict[str, Path], manifest: dict,
         if not data.get("ok"):
             failed.append(f"{name}（{json.dumps(data.get('error') or data, ensure_ascii=False)[:160]}）")
             continue
-        node = ((data.get("data") or {}).get("node")
-                or (data.get("data") or {}).get("data") or {})
+        # 返回结构有两种形态：data 直接是节点，或 data.node 包一层，都得吃得下
+        payload = data.get("data") or {}
+        node = payload.get("node") if isinstance(payload.get("node"), dict) else payload
         nodes[name] = {
             "node_token": node.get("node_token") or "",
             "obj_token": node.get("obj_token") or token,
