@@ -66,6 +66,7 @@ DEFAULT_CONFIG = {
     "base_url": "https://starnever0.github.io/blog",
     "repo": "https://github.com/Starnever0/blog",
     "feishu_folder_token": "",
+    "feishu_wiki_space_id": "",
     "git_remote": "origin",
     "git_branch": "main",
 }
@@ -391,13 +392,13 @@ def feishu_push(cfg: dict, manifest: dict, pages: dict[str, Path]) -> dict:
     return {"ok": True, "summary": (data.get("data") or {}).get("summary") or {}}
 
 
-def feishu_index(cfg: dict) -> dict[str, str]:
-    """递归列出飞书镜像目录，返回「相对路径 → 飞书 URL」。"""
+def feishu_listing(cfg: dict) -> dict[str, dict]:
+    """递归列出飞书镜像目录，返回「相对路径 → {token, url}」。"""
     token = cfg.get("feishu_folder_token") or ""
     exe = lark_bin()
     if not token or not exe:
         return {}
-    out: dict[str, str] = {}
+    out: dict[str, dict] = {}
 
     def walk(folder_token: str, prefix: str) -> None:
         proc = run([exe, "drive", "files", "list",
@@ -415,13 +416,94 @@ def feishu_index(cfg: dict) -> dict[str, str]:
             if f.get("type") == "folder":
                 walk(f.get("token") or "", f"{prefix}{name}/")
             elif f.get("type") == "file":
-                out[f"{prefix}{name}"] = f.get("url") or ""
+                out[f"{prefix}{name}"] = {"token": f.get("token") or "", "url": f.get("url") or ""}
 
     try:
         walk(token, "")
     except Exception as exc:
         print(f"  ! 列飞书目录失败：{exc}", file=sys.stderr)
     return out
+
+
+def feishu_index(cfg: dict) -> dict[str, str]:
+    """只要 URL 的薄封装（日报和栏目页用）。"""
+    return {k: v.get("url") or "" for k, v in feishu_listing(cfg).items()}
+
+
+# ---------------------------------------------------------------- 飞书知识库
+
+def wiki_node_title(entry: dict, name: str) -> str:
+    """知识库里的节点标题：日期前缀 + 文章标题。
+
+    加日期是因为飞书知识库的树按标题排序，不加日期就变成字典序，
+    时间线彻底散掉。日期来自文件名，是派生值，不额外维护。
+    """
+    date = entry.get("date") or ""
+    title = entry.get("title") or Path(name).stem
+    return f"{date} · {title}" if date else title
+
+
+def feishu_wiki_sync(cfg: dict, pages: dict[str, Path], manifest: dict,
+                     remote: dict[str, dict], state: dict) -> dict:
+    """给每篇还没挂过的文章在知识库里补一个快捷方式节点。
+
+    只增不删、不分类、不建子层：所有节点平铺在知识库根，
+    排序靠标题里的日期前缀。节点是 shortcut，指向云空间里那份 HTML，
+    所以点开是飞书自己的预览，不是下载。
+    """
+    space_id = (cfg.get("feishu_wiki_space_id") or "").strip()
+    if not space_id:
+        return {"ok": True, "detail": "未配置 feishu_wiki_space_id，跳过"}
+    exe = lark_bin()
+    if not exe:
+        return {"ok": False, "detail": "找不到 lark-cli"}
+
+    by_file = {e.get("file"): e for e in manifest["pages"]}
+    nodes = state.setdefault("wiki_nodes", {})
+    created, skipped, failed = [], [], []
+
+    for name in sorted(pages):
+        if nodes.get(name):
+            skipped.append(name)
+            continue
+        token = (remote.get(name) or {}).get("token")
+        if not token:
+            failed.append(f"{name}（飞书里没找到这个文件，先确保镜像成功）")
+            continue
+        entry = by_file.get(name) or {}
+        proc = run([exe, "wiki", "+node-create",
+                    "--space-id", space_id,
+                    "--node-type", "shortcut",
+                    "--obj-type", "file",
+                    "--origin-node-token", token,
+                    "--title", wiki_node_title(entry, name),
+                    "--as", "user", "--format", "json"])
+        raw = (proc.stdout or "").strip()
+        start = raw.find("{")
+        if start < 0:
+            failed.append(f"{name}（{(proc.stderr or raw or '无输出')[:120]}）")
+            continue
+        try:
+            data = json.loads(raw[start:])
+        except Exception:
+            failed.append(f"{name}（返回无法解析）")
+            continue
+        if not data.get("ok"):
+            failed.append(f"{name}（{json.dumps(data.get('error') or data, ensure_ascii=False)[:160]}）")
+            continue
+        node = ((data.get("data") or {}).get("node")
+                or (data.get("data") or {}).get("data") or {})
+        nodes[name] = {
+            "node_token": node.get("node_token") or "",
+            "obj_token": node.get("obj_token") or token,
+            "title": wiki_node_title(entry, name),
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        created.append(name)
+
+    if created:
+        save_state(state)
+    return {"ok": not failed, "created": created, "skipped": skipped, "failed": failed}
 
 
 # ---------------------------------------------------------------- 对账
@@ -458,6 +540,7 @@ def main() -> int:
     ap.add_argument("--check", action="store_true", help="只对账，不写入不推送")
     ap.add_argument("--no-feishu", action="store_true", help="跳过飞书镜像")
     ap.add_argument("--no-git", action="store_true", help="跳过 git 提交与推送")
+    ap.add_argument("--no-wiki", action="store_true", help="跳过飞书知识库节点同步")
     ap.add_argument("--build-collections", action="store_true", help="按 manifest 生成栏目页")
     args = ap.parse_args()
 
@@ -510,7 +593,13 @@ def main() -> int:
     if not args.check and not args.no_feishu:
         feishu_info = feishu_push(cfg, manifest, pages)
 
-    remote = feishu_index(cfg)
+    listing = feishu_listing(cfg)
+    remote = {k: v.get("url") or "" for k, v in listing.items()}
+
+    wiki_info = {"ok": True, "detail": "跳过"}
+    if not args.check and not args.no_feishu and not args.no_wiki:
+        wiki_info = feishu_wiki_sync(cfg, pages, manifest, listing, state)
+
     local_names = set(pages.keys())
     missing_remote = sorted(local_names - set(remote.keys()))
     extra_remote = sorted({n for n in remote if "/" not in n} - local_names - {INDEX_NAME})
@@ -556,6 +645,16 @@ def main() -> int:
               f" / 失败 {s.get('failed', 0)}")
     else:
         print(f"飞书   失败 —— {feishu_info.get('detail')}")
+
+    if wiki_info.get("detail") == "跳过":
+        pass
+    elif wiki_info.get("ok") and not wiki_info.get("created"):
+        print(f"知识库  无新增节点（已有 {len(wiki_info.get('skipped') or [])} 条）")
+    else:
+        c = wiki_info.get("created") or []
+        print(f"知识库  新增 {len(c)} 个节点" + (f"：{', '.join(c)}" if c else ""))
+        for f in wiki_info.get("failed") or []:
+            print(f"        ! {f}")
 
     if not args.check and (git_info.get("pushed") or args.no_git):
         for name, path in pages.items():
