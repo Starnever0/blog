@@ -451,13 +451,32 @@ def wiki_node_title(entry: dict, name: str) -> str:
     return f"{date} · {title}" if date else title
 
 
+def wiki_existing_nodes(exe: str, space_id: str) -> dict[str, dict]:
+    """读飞书知识库现有节点，按 obj_token（= 云空间文件 token）索引。
+
+    去重依据是飞书那边的真实状态，不是本地状态文件。状态文件丢了、
+    换机器了，都不会重复建节点。
+    """
+    proc = run([exe, "wiki", "+node-list", "--space-id", space_id,
+                "--as", "user", "--format", "json", "--page-all"])
+    raw = (proc.stdout or "").strip()
+    start = raw.find("{")
+    if start < 0:
+        raise RuntimeError((proc.stderr or raw or "node-list 无输出")[:300])
+    data = json.loads(raw[start:])
+    if not data.get("ok"):
+        raise RuntimeError(json.dumps(data.get("error") or data, ensure_ascii=False)[:300])
+    nodes = (data.get("data") or {}).get("nodes") or []
+    return {n.get("obj_token"): n for n in nodes if n.get("obj_token")}
+
+
 def feishu_wiki_sync(cfg: dict, pages: dict[str, Path], manifest: dict,
                      remote: dict[str, dict], state: dict) -> dict:
     """给每篇还没挂过的文章在知识库里补一个快捷方式节点。
 
-    只增不删、不分类、不建子层：所有节点平铺在知识库根，
-    排序靠标题里的日期前缀。节点是 shortcut，指向云空间里那份 HTML，
-    所以点开是飞书自己的预览，不是下载。
+    只增不删、不分类、不建子层：所有节点平铺在知识库根，排序靠飞书里的手工拖动
+    或创建顺序。节点是 shortcut，指向云空间里那份 HTML，所以点开是飞书自己的
+    预览，不是下载。
     """
     space_id = (cfg.get("feishu_wiki_space_id") or "").strip()
     if not space_id:
@@ -466,25 +485,42 @@ def feishu_wiki_sync(cfg: dict, pages: dict[str, Path], manifest: dict,
     if not exe:
         return {"ok": False, "detail": "找不到 lark-cli"}
 
+    try:
+        existing = wiki_existing_nodes(exe, space_id)
+    except Exception as exc:
+        return {"ok": False, "detail": f"读知识库节点失败：{exc}"}
+
     by_file = {e.get("file"): e for e in manifest["pages"]}
     nodes = state.setdefault("wiki_nodes", {})
     created, skipped, failed = [], [], []
 
     for name in sorted(pages):
-        if nodes.get(name):
+        token = (remote.get(name) or {}).get("token")
+        entry = by_file.get(name) or {}
+        title = wiki_node_title(entry, name)
+
+        # 知识库那边已经有指向这个文件的节点：登记进状态就够，不重复建
+        if token and token in existing:
+            hit = existing[token]
+            nodes[name] = {
+                "node_token": hit.get("node_token") or "",
+                "obj_token": token,
+                "title": hit.get("title") or title,
+                "url": hit.get("url") or f"https://my.feishu.cn/wiki/{hit.get('node_token') or ''}",
+            }
             skipped.append(name)
             continue
-        token = (remote.get(name) or {}).get("token")
+
         if not token:
             failed.append(f"{name}（飞书里没找到这个文件，先确保镜像成功）")
             continue
-        entry = by_file.get(name) or {}
+
         proc = run([exe, "wiki", "+node-create",
                     "--space-id", space_id,
                     "--node-type", "shortcut",
                     "--obj-type", "file",
                     "--origin-node-token", token,
-                    "--title", wiki_node_title(entry, name),
+                    "--title", title,
                     "--as", "user", "--format", "json"])
         raw = (proc.stdout or "").strip()
         start = raw.find("{")
@@ -505,12 +541,13 @@ def feishu_wiki_sync(cfg: dict, pages: dict[str, Path], manifest: dict,
         nodes[name] = {
             "node_token": node.get("node_token") or "",
             "obj_token": node.get("obj_token") or token,
-            "title": wiki_node_title(entry, name),
+            "title": title,
+            "url": node.get("url") or f"https://my.feishu.cn/wiki/{node.get('node_token') or ''}",
             "created_at": datetime.now().isoformat(timespec="seconds"),
         }
         created.append(name)
 
-    if created:
+    if created or skipped:
         save_state(state)
     return {"ok": not failed, "created": created, "skipped": skipped, "failed": failed}
 
@@ -627,6 +664,9 @@ def main() -> int:
         print(f"  站点   {base}/{rel}")
         print(f"  仓库   {repo}/blob/{branch}/{rel}")
         print(f"  飞书   {remote.get(name) or '（未在远端找到）'}")
+        node = (state.get("wiki_nodes") or {}).get(name) or {}
+        if node.get("url"):
+            print(f"  知识库 {node['url']}")
 
     for n in new:
         show(n, "新增")
