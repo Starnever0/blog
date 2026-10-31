@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三家后厨的对照 · DeepInfer / vLLM / SGLang</title>
+<style>
+:root{
+  --paper:#FBFAF7;
+  --card:#FFFFFF;
+  --ink:#1A1A17;
+  --ink2:#55554D;
+  --ink3:#8C8C81;
+  --rule:#E6E2D7;
+  --rule2:#D5D0C2;
+  --vllm:#2F6289; --vllm-bg:#EDF3F8; --vllm-line:#BDD3E3;
+  --sgl:#1A6E5A;  --sgl-bg:#E9F4F0;  --sgl-line:#AFD9CC;
+  --deep:#B4451F; --deep-bg:#FBEEE7; --deep-line:#EFC6B3;
+  --maxw:820px;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Source Han Sans SC",sans-serif;
+  --serif:Georgia,"Songti SC","Source Han Serif SC","Noto Serif SC",serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.85;
+  -webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(circle at 18% -8%,rgba(180,69,31,.05),transparent 46%),
+                   radial-gradient(circle at 88% 4%,rgba(47,98,137,.045),transparent 42%);
+  background-repeat:no-repeat;
+}
+::selection{background:#F3D9CC;color:#5A2310}
+
+/* ---------- 进度条 ---------- */
+.progress{
+  position:fixed;top:0;left:0;height:2px;width:100%;
+  background:var(--deep);transform:scaleX(0);transform-origin:0 50%;
+  z-index:99;transition:transform .08s linear;
+}
+
+/* ---------- 容器 ---------- */
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 26px}
+
+/* ---------- Hero ---------- */
+.hero{padding:86px 0 20px}
+.kicker{
+  display:inline-block;font-size:12px;letter-spacing:.14em;font-weight:600;
+  color:var(--deep);background:var(--deep-bg);border:1px solid var(--deep-line);
+  padding:5px 13px;border-radius:100px;text-transform:uppercase;
+}
+h1{
+  font-size:clamp(34px,5.6vw,50px);line-height:1.24;letter-spacing:-.02em;
+  margin:26px 0 0;font-weight:800;
+}
+h1 .thin{display:block;font-size:clamp(13px,2.2vw,15px);font-weight:600;
+  letter-spacing:.26em;color:var(--ink3);margin-bottom:14px;text-transform:uppercase}
+.h1-sub{margin:14px 0 0;font-size:clamp(15px,2.6vw,17px);color:var(--ink3);
+  letter-spacing:.04em;font-weight:500}
+.lead{
+  margin:26px 0 0;font-size:17.5px;line-height:1.86;color:var(--ink2);
+  max-width:44em;
+}
+.lead b{color:var(--ink);font-weight:700}
+.meta{
+  margin-top:26px;padding-top:18px;border-top:1px solid var(--rule);
+  font-size:13px;color:var(--ink3);display:flex;flex-wrap:wrap;gap:8px 20px;
+}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.chip{
+  display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;
+  padding:6px 13px;border-radius:8px;border:1px solid;background:var(--card);
+}
+.chip i{width:7px;height:7px;border-radius:50%;display:block}
+.chip.v{color:var(--vllm);border-color:var(--vllm-line)} .chip.v i{background:var(--vllm)}
+.chip.s{color:var(--sgl);border-color:var(--sgl-line)}  .chip.s i{background:var(--sgl)}
+.chip.d{color:var(--deep);border-color:var(--deep-line)} .chip.d i{background:var(--deep)}
+
+/* ---------- 目录 ---------- */
+.toc{margin-top:48px}
+.toc-card{
+  background:var(--card);border:1px solid var(--rule);border-radius:14px;
+  padding:22px 26px 18px;box-shadow:0 1px 2px rgba(26,26,23,.03);
+}
+.toc-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  padding-bottom:12px;border-bottom:1px solid var(--rule);
+}
+.toc-kicker{font-size:11px;letter-spacing:.2em;font-weight:700;color:var(--ink3);text-transform:uppercase}
+.toc-kicker b{font-weight:700;letter-spacing:.14em;color:var(--deep);margin-left:10px}
+.toc-meta{font-size:11.5px;color:var(--ink3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.toc-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:0 38px;
+  grid-auto-flow:column;grid-template-rows:repeat(6,auto);
+  margin:6px 0 0;padding:0;list-style:none;
+}
+.toc-grid li{margin:0;padding:0}
+.toc-grid a{
+  display:flex;align-items:baseline;gap:12px;text-decoration:none;
+  color:var(--ink2);font-size:14.5px;line-height:1.5;
+  padding:8px 8px 8px 7px;border-radius:7px;margin:1px 0;
+  transition:background .15s,color .15s;
+}
+.toc-grid .no{
+  flex:none;min-width:19px;font-size:11.5px;font-weight:700;color:var(--ink3);
+  font-variant-numeric:tabular-nums;letter-spacing:.05em;transition:color .15s;
+}
+.toc-grid .tx{flex:1 1 auto}
+.toc-grid a:hover{background:#FAF6EF;color:var(--ink)}
+.toc-grid a:hover .no{color:var(--ink2)}
+.toc-grid a.on{background:var(--deep-bg);color:var(--deep);font-weight:600}
+.toc-grid a.on .no{color:var(--deep)}
+
+/* ---------- 章节 ---------- */
+main{padding-bottom:40px}
+section{padding:52px 0 0;scroll-margin-top:24px}
+section>h2{
+  font-size:clamp(22px,3.6vw,27px);line-height:1.4;letter-spacing:-.015em;
+  margin:0 0 20px;font-weight:800;display:flex;gap:14px;align-items:flex-start;
+}
+.num{
+  flex:none;width:30px;height:30px;border-radius:9px;background:var(--deep);
+  color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;
+  justify-content:center;margin-top:3px;font-variant-numeric:tabular-nums;
+}
+h3{font-size:17.5px;font-weight:700;margin:34px 0 10px;letter-spacing:-.005em}
+p{margin:0 0 17px}
+b,strong{font-weight:700}
+.ul{margin:0 0 18px;padding-left:0;list-style:none}
+.ul li{position:relative;padding-left:20px;margin-bottom:9px}
+.ul li::before{
+  content:"";position:absolute;left:2px;top:.72em;width:6px;height:6px;
+  border-radius:50%;background:var(--rule2);
+}
+hr.sep{border:0;height:1px;background:var(--rule);margin:52px 0 0}
+
+/* ---------- 引擎卡 ---------- */
+.engines{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:26px 0 8px}
+.eng{
+  background:var(--card);border:1px solid var(--rule);border-radius:14px;
+  padding:20px 18px 18px;position:relative;overflow:hidden;
+  box-shadow:0 1px 2px rgba(26,26,23,.03);
+}
+.eng::before{content:"";position:absolute;inset:0 0 auto 0;height:3px}
+.eng.v::before{background:var(--vllm)} .eng.s::before{background:var(--sgl)} .eng.d::before{background:var(--deep)}
+.eng-role{font-size:12px;letter-spacing:.1em;font-weight:700;margin-bottom:8px}
+.eng.v .eng-role{color:var(--vllm)} .eng.s .eng-role{color:var(--sgl)} .eng.d .eng-role{color:var(--deep)}
+.eng h4{margin:0 0 6px;font-size:16.5px;font-weight:800}
+.eng p{margin:0;font-size:13.5px;line-height:1.72;color:var(--ink2)}
+.eng-meta{
+  margin-top:14px;padding-top:11px;border-top:1px dashed var(--rule);
+  font-size:11.5px;letter-spacing:.04em;font-weight:600;color:var(--ink3);
+}
+
+/* ---------- 引用 ---------- */
+.readme{
+  margin:22px 0;padding:20px 24px;background:var(--card);
+  border:1px solid var(--rule);border-left:3px solid var(--deep);
+  border-radius:0 12px 12px 0;font-size:15px;color:var(--ink2);
+}
+.readme .q{font-family:var(--serif);font-style:italic;font-size:16px;color:var(--ink);
+  line-height:1.7;margin:0 0 10px}
+.readme .tr{margin:0;font-size:13.5px;color:var(--ink3)}
+
+/* ---------- 表格 ---------- */
+.tbl-wrap{overflow-x:auto;margin:24px 0 8px;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;min-width:600px;font-size:14px;background:var(--card)}
+th,td{text-align:left;padding:13px 15px;vertical-align:top;border-bottom:1px solid var(--rule)}
+thead th{
+  font-size:12.5px;letter-spacing:.06em;font-weight:700;color:var(--ink);
+  background:#F7F5EF;border-bottom:1px solid var(--rule2);white-space:nowrap;
+}
+thead th.v{color:var(--vllm)} thead th.s{color:var(--sgl)} thead th.d{color:var(--deep)}
+tbody td:first-child{font-weight:600;color:var(--ink);white-space:nowrap;background:#FCFBF8}
+tbody tr:last-child td{border-bottom:0}
+td .t{color:var(--deep);font-weight:700}
+.tbl-note{font-size:12.5px;color:var(--ink3);margin:8px 0 0}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;font-size:.87em;background:#F1EFE8;border:1px solid #E6E2D7;border-radius:4px;padding:.5px 5px;color:#4A3B2A;white-space:normal;overflow-wrap:anywhere}
+
+/* ---------- 提示条 ---------- */
+.note{
+  margin:22px 0;padding:16px 18px;border-radius:11px;font-size:14.2px;
+  line-height:1.78;border:1px solid var(--rule2);background:#F7F5EF;color:var(--ink2);
+}
+.note.warn{background:var(--deep-bg);border-color:var(--deep-line);color:#6E2A12}
+.note.warn b{color:#5A2310}
+.note.info{background:var(--vllm-bg);border-color:var(--vllm-line);color:#264E6D}
+.note .tag{
+  display:block;font-size:11.5px;letter-spacing:.14em;font-weight:700;
+  margin-bottom:6px;opacity:.78;
+}
+
+/* ---------- 图 ---------- */
+figure{margin:28px 0;padding:0}
+.fig{
+  background:var(--card);border:1px solid var(--rule);border-radius:14px;
+  padding:22px 20px 8px;overflow:hidden;
+}
+.fig svg{display:block;width:100%;height:auto}
+figcaption{
+  margin:12px 0 0;font-size:12.8px;color:var(--ink3);line-height:1.7;
+  padding:0 4px 12px;
+}
+figcaption b{color:var(--ink2)}
+
+/* ---------- 四个动作 ---------- */
+.moves{display:grid;gap:0;margin:24px 0;counter-reset:mv}
+.move{
+  display:grid;grid-template-columns:44px 1fr;gap:16px;
+  padding:18px 0;border-bottom:1px solid var(--rule);
+}
+.move:first-child{border-top:1px solid var(--rule)}
+.move-n{
+  font-family:var(--serif);font-size:26px;line-height:1;color:var(--deep);
+  font-weight:700;padding-top:2px;font-variant-numeric:tabular-nums;opacity:.85;
+}
+.move h4{margin:0 0 5px;font-size:15.8px;font-weight:750}
+.move p{margin:0;font-size:14.2px;color:var(--ink2);line-height:1.76}
+
+/* ---------- 缺件 ---------- */
+.gap-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:26px 0 6px}
+.gap{
+  border-radius:11px;padding:14px 12px;font-size:13px;line-height:1.6;
+  border:1px dashed var(--rule2);background:#F9F8F4;color:var(--ink3);
+}
+.gap.have{border:1px solid var(--deep-line);background:var(--deep-bg);color:#6E2A12}
+.gap .s{display:block;font-size:11px;letter-spacing:.1em;font-weight:700;margin-bottom:6px;opacity:.8}
+.gap b{display:block;font-size:13.6px;margin-bottom:3px;color:inherit}
+
+/* ---------- 选型 ---------- */
+.pick{margin:24px 0}
+.pick-row{
+  display:grid;grid-template-columns:1fr 200px;gap:18px;align-items:center;
+  padding:16px 18px;border:1px solid var(--rule);border-radius:12px;background:var(--card);
+  margin-bottom:10px;
+}
+.pick-row p{margin:0;font-size:14.4px;line-height:1.72}
+.pick-tag{
+  font-size:13px;font-weight:700;padding:7px 10px;border-radius:8px;text-align:center;
+}
+.pick-tag.go{background:var(--deep-bg);color:var(--deep);border:1px solid var(--deep-line)}
+.pick-tag.wait{background:var(--vllm-bg);color:var(--vllm);border:1px solid var(--vllm-line)}
+.pick-tag.mix{background:var(--sgl-bg);color:var(--sgl);border:1px solid var(--sgl-line)}
+
+/* ---------- 注意事项 ---------- */
+details.caveat{
+  background:var(--card);border:1px solid var(--rule);border-radius:11px;
+  margin-bottom:8px;overflow:hidden;
+}
+details.caveat summary{
+  cursor:pointer;padding:14px 18px;font-size:14.6px;font-weight:650;
+  display:flex;align-items:center;gap:11px;list-style:none;
+}
+details.caveat summary::-webkit-details-marker{display:none}
+details.caveat summary::after{
+  content:"+";margin-left:auto;color:var(--ink3);font-size:18px;font-weight:400;
+  line-height:1;transition:transform .2s;
+}
+details.caveat[open] summary::after{content:"−"}
+details.caveat .body{
+  padding:0 18px 16px 18px;font-size:14px;line-height:1.8;color:var(--ink2);
+  border-top:1px solid var(--rule);padding-top:14px;
+}
+.ca-n{
+  flex:none;width:20px;height:20px;border-radius:5px;background:#F1EFE8;
+  color:var(--ink2);font-size:11.5px;font-weight:700;display:flex;
+  align-items:center;justify-content:center;font-variant-numeric:tabular-nums;
+}
+
+/* ---------- 收尾 ---------- */
+.closer{
+  margin:56px 0 0;padding:38px 32px;border-radius:18px;
+  background:linear-gradient(180deg,#FDF6F2 0%,#FBFAF7 100%);
+  border:1px solid var(--deep-line);
+}
+.closer .mark{font-size:12px;letter-spacing:.16em;font-weight:700;color:var(--deep);margin-bottom:16px}
+.closer blockquote{
+  margin:0;font-family:var(--serif);font-size:clamp(18px,3.2vw,22px);
+  line-height:1.78;color:#3A1C0E;letter-spacing:-.005em;
+}
+.closer blockquote b{color:var(--deep);font-weight:700}
+.closer p{margin:20px 0 0;font-size:14.6px;color:var(--ink2);line-height:1.86}
+
+footer{
+  margin-top:52px;padding:24px 0 60px;border-top:1px solid var(--rule);
+  font-size:12.6px;color:var(--ink3);line-height:1.8;
+}
+
+/* ---------- 响应式 ---------- */
+@media(max-width:720px){
+  .engines{grid-template-columns:1fr}
+  .gap-grid{grid-template-columns:1fr 1fr}
+  .pick-row{grid-template-columns:1fr;gap:10px}
+  .pick-tag{text-align:left}
+}
+@media(max-width:620px){
+  .toc{margin-top:36px}
+  .toc-card{padding:18px 15px 14px;border-radius:12px}
+  .toc-head{padding-bottom:11px}
+  .toc-grid{grid-template-columns:1fr;grid-auto-flow:row;grid-template-rows:none;gap:0}
+  .toc-grid a{padding:9px 7px}
+  .hero{padding-top:56px}
+  section{padding-top:40px}
+  .closer{padding:28px 22px}
+}
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">推理引擎 · 三方对照</div>
+    <h1>
+      <span class="thin">DeepInfer · vLLM · SGLang</span>
+      三家后厨的对照
+    </h1>
+    <p class="h1-sub">骨架来自 vLLM，灵感来自 SGLang，但这道菜只做一份</p>
+    <p class="lead">
+      DeepSeek 在 2026 年 10 月 20 日开源了支撑自家生产服务的推理框架 <b>DeepInfer</b>。
+      流传最广的说法是“它基于 vLLM 构建”——这句话成立，但只说对了一半。
+      真正值得读懂的，是它和 vLLM、SGLang 之间那条 <b>什么给了、什么没给</b> 的分界线。
+    </p>
+    <div class="meta">
+      <span>2026-10-22</span>
+      <span>约 12 分钟</span>
+      <span>事实核对至官方仓库</span>
+    </div>
+    <div class="chips">
+      <span class="chip v"><i></i>vLLM</span>
+      <span class="chip s"><i></i>SGLang</span>
+      <span class="chip d"><i></i>DeepInfer</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc wrap" aria-label="目录">
+  <div class="toc-card">
+    <div class="toc-head">
+      <div class="toc-kicker">Contents<b>目录</b></div>
+      <div class="toc-meta">12 节 · 约 12 分钟</div>
+    </div>
+    <ol class="toc-grid">
+      <li><a href="#s1" data-nav><span class="no">01</span><span class="tx">一个人人都会踩的坑</span></a></li>
+      <li><a href="#s2" data-nav><span class="no">02</span><span class="tx">一句话说清它是谁</span></a></li>
+      <li><a href="#s3" data-nav><span class="no">03</span><span class="tx">血缘：改装，不是插件</span></a></li>
+      <li><a href="#s4" data-nav><span class="no">04</span><span class="tx">五个维度看清区别</span></a></li>
+      <li><a href="#s5" data-nav><span class="no">05</span><span class="tx">用广度换深度</span></a></li>
+      <li><a href="#s6" data-nav><span class="no">06</span><span class="tx">和 SGLang 比</span></a></li>
+      <li><a href="#s7" data-nav><span class="no">07</span><span class="tx">实测与那张价签</span></a></li>
+      <li><a href="#s8" data-nav><span class="no">08</span><span class="tx">它凭什么快</span></a></li>
+      <li><a href="#s9" data-nav><span class="no">09</span><span class="tx">三个没给的东西</span></a></li>
+      <li><a href="#s10" data-nav><span class="no">10</span><span class="tx">什么时候用</span></a></li>
+      <li><a href="#s11" data-nav><span class="no">11</span><span class="tx">要留心的地方</span></a></li>
+      <li><a href="#s12" data-nav><span class="no">12</span><span class="tx">一句话记住</span></a></li>
+    </ol>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<section id="s1">
+  <h2><span class="num">1</span>先说一个人人都会踩的坑</h2>
+  <p>你大概经历过这个循环：听说某个新推理框架比手上这个快 25%，心动，准备迁。然后打开 README，一条条往下看——</p>
+  <p>只支持一个模型；只支持两种芯片；最小高效部署要 128 张卡；KV cache 系统、负载均衡、Prefill/Decode 分离这三块，没开源。</p>
+  <p>心动结束。</p>
+  <p>消息本身很硬：一个集群每天跑 155 万亿 token。但真正值得读懂的，不是这个数字，而是它摆在三家中间时的那条分界线。</p>
+</section>
+
+<hr class="sep">
+
+<section id="s2">
+  <h2><span class="num">2</span>一句话说清它是谁</h2>
+  <p>用后厨打个比方，三家角色就清楚了。后厨里的东西一一对应：炉灶刀具是 GPU kernel，厨师长排班是调度器，提前切好的半成品是 prefix cache，冷库是 KV cache 存储层，传菜员是负载均衡，前厅点单是 OpenAI API server。</p>
+
+  <div class="engines">
+    <div class="eng v">
+      <div class="eng-role">全国连锁中央厨房</div>
+      <h4>vLLM</h4>
+      <p>什么菜都做，供应商多，谁都能接手，菜单长得离谱。标准化的代价是：不可能为一道菜改整条产线。</p>
+      <div class="eng-meta">数百个模型 · 多硬件插件</div>
+    </div>
+    <div class="eng s">
+      <div class="eng-role">做宴席起家的厨房</div>
+      <h4>SGLang</h4>
+      <p>最擅长“一桌人吃同一份大菜”——同一个系统提示、同一份长文档，备好的菜能反复上桌。</p>
+      <div class="eng-meta">前缀复用 · 大规模 EP</div>
+    </div>
+    <div class="eng d">
+      <div class="eng-role">米其林单店</div>
+      <h4>DeepInfer</h4>
+      <p>只做一道招牌菜，从刀工到火候到上菜顺序全部为这道菜定制。菜单一页，但那一页做到极致。</p>
+      <div class="eng-meta">1 个模型 · 2 种芯片</div>
+    </div>
+  </div>
+  <p class="tbl-note">记住这张表，后面全篇都用它。</p>
+</section>
+
+<hr class="sep">
+
+<section id="s3">
+  <h2><span class="num">3</span>血缘确认：确实是 vLLM 带大的，但是“改装”不是“插件”</h2>
+  <p>你的直觉没错。DeepInfer 的 README 致谢里写得很直白：</p>
+  <div class="readme">
+    <p class="q">“DeepInfer was originally built primarily on vLLM, with additional inspiration from SGLang and TensorRT-LLM.”</p>
+    <p class="tr">翻译：骨架是 vLLM 的，灵感来自 SGLang 和 TensorRT-LLM。</p>
+  </div>
+  <p>但这里有个容易搞错的层次，值得掰开：</p>
+  <ul class="ul">
+    <li><b>骨架同源。</b>调度器怎么排请求、KV cache 怎么分页、模型怎么加载、采样器怎么组织——这套 Python 层的结构是 vLLM 趟出来的。</li>
+    <li><b>内脏全换。</b>注意力、矩阵乘、专家通信这些真正吃算力的地方，换成了自家的 FlashMLA、DeepGEMM、DeepEP、DeepSelect、TileKernels，外加自己写的 TileLang kernel。</li>
+    <li><b>所以它不是插件。</b>你没法在 vLLM 上加个参数就切过去。它是一份独立代码库：<b>共用图纸，但发动机、变速箱、空气动力学全部按一辆车重做。</b></li>
+  </ul>
+
+  <figure>
+    <div class="fig">
+      <svg viewBox="0 0 760 236" role="img">
+        <title>DeepInfer 与 vLLM 的血缘关系</title>
+        <desc>左侧是 vLLM 的通用骨架，中间箭头标注从 2025 到 2026 的分叉，右侧 DeepInfer 保留了调度器与分页结构，但把计算内核整批替换为 DeepSeek 自家组件。</desc>
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#8C8C81"/>
+          </marker>
+        </defs>
+
+        <rect x="14" y="34" width="286" height="168" rx="12" fill="#EDF3F8" stroke="#BDD3E3"/>
+        <text x="34" y="58" font-size="12.5" font-weight="700" fill="#2F6289" dominant-baseline="central">vLLM · 通用骨架</text>
+        <rect x="34" y="76" width="246" height="26" rx="6" fill="#FFFFFF" stroke="#BDD3E3"/>
+        <text x="46" y="89" font-size="12" fill="#264E6D" dominant-baseline="central">调度器 · 请求排队与批处理</text>
+        <rect x="34" y="108" width="246" height="26" rx="6" fill="#FFFFFF" stroke="#BDD3E3"/>
+        <text x="46" y="121" font-size="12" fill="#264E6D" dominant-baseline="central">KV cache 分页 · 块表与回收</text>
+        <rect x="34" y="140" width="246" height="26" rx="6" fill="#FFFFFF" stroke="#BDD3E3"/>
+        <text x="46" y="153" font-size="12" fill="#264E6D" dominant-baseline="central">模型加载 · 权重与配置</text>
+        <rect x="34" y="172" width="246" height="26" rx="6" fill="#FFFFFF" stroke="#BDD3E3"/>
+        <text x="46" y="185" font-size="12" fill="#264E6D" dominant-baseline="central">采样器 · 输出 token 生成</text>
+
+        <path d="M304 118 L406 118" stroke="#8C8C81" fill="none" stroke-width="1.4" marker-end="url(#ar)"/>
+        <text x="355" y="104" font-size="11" fill="#8C8C81" text-anchor="middle" dominant-baseline="central">2025 → 2026</text>
+        <text x="355" y="136" font-size="11" fill="#8C8C81" text-anchor="middle" dominant-baseline="central">分叉</text>
+
+        <rect x="410" y="34" width="336" height="168" rx="12" fill="#FBEEE7" stroke="#EFC6B3"/>
+        <text x="430" y="58" font-size="12.5" font-weight="700" fill="#B4451F" dominant-baseline="central">DeepInfer · 只服务一个模型</text>
+        <rect x="430" y="76" width="296" height="26" rx="6" fill="#FFFFFF" stroke="#E3D5CC"/>
+        <text x="442" y="89" font-size="12" fill="#6E2A12" dominant-baseline="central">骨架保留 · 依然是 vLLM 那套结构</text>
+        <rect x="430" y="108" width="296" height="60" rx="6" fill="#FFFFFF" stroke="#B4451F" stroke-dasharray="4 3"/>
+        <text x="442" y="124" font-size="11.5" font-weight="700" fill="#B4451F" dominant-baseline="central">内脏全换</text>
+        <text x="442" y="142" font-size="11.5" fill="#6E2A12" dominant-baseline="central">FlashMLA / DeepGEMM / DeepEP</text>
+        <text x="442" y="158" font-size="11.5" fill="#6E2A12" dominant-baseline="central">DeepSelect / TileKernels / TileLang</text>
+        <rect x="430" y="176" width="296" height="22" rx="6" fill="#FFFFFF" stroke="#E3D5CC"/>
+        <text x="442" y="187" font-size="11.5" fill="#6E2A12" dominant-baseline="central">+ DSpark · SWA 重放 · 异步调度</text>
+      </svg>
+    </div>
+    <figcaption><b>同一张底盘图纸，两套动力总成。</b>蓝色是继承下来的骨架，橙色虚线框是被整批替换掉的计算内核——这也是为什么它不能当成 vLLM 的一个开关。</figcaption>
+  </figure>
+
+  <p>顺带一个背景，能帮你理解这次开源的姿态。2025 年 4 月 DeepSeek 就想过开源完整引擎，当时放弃了，理由写在公告里——维护一个大型开源项目的工作量，超出了“一个专注做模型的小研究团队的承受范围”。</p>
+  <p>所以这次不是“我们终于想通了要拥抱社区”，而是<b>“我们只开放引擎，不承诺社区运营”</b>。这个姿态差异，后面会反复显形。</p>
+</section>
+
+<hr class="sep">
+
+<section id="s4">
+  <h2><span class="num">4</span>五个维度，看清区别</h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>维度</th>
+          <th class="v">vLLM</th>
+          <th class="s">SGLang</th>
+          <th class="d">DeepInfer</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>支持的模型</td>
+          <td>数百个架构，新模型通常几天内适配</td>
+          <td>主流模型全线覆盖，前沿 MoE 追得很紧</td>
+          <td><span class="t">只有 DeepSeek-V4.1-Flash 一个</span></td>
+        </tr>
+        <tr>
+          <td>支持的芯片</td>
+          <td>NVIDIA / AMD / Intel / TPU / 昇腾（插件）</td>
+          <td>NVIDIA / AMD / Intel / TPU / 昇腾</td>
+          <td><span class="t">SM100 + 昇腾 950</span>；Hopper 系（H100/H200）完全不支持</td>
+        </tr>
+        <tr>
+          <td>能否直接起服务</td>
+          <td><code>vllm serve</code> 一行起 OpenAI 兼容服务</td>
+          <td>同样一行起服务</td>
+          <td><span class="t">只有离线推理</span>，要自己补 HTTP 层</td>
+        </tr>
+        <tr>
+          <td>优化重心</td>
+          <td>通用吞吐 + 广覆盖 + 生态低迁移风险</td>
+          <td>前缀复用、缓存感知调度、大规模 EP、RL rollout</td>
+          <td>单模型全链路极限优化</td>
+        </tr>
+        <tr>
+          <td>维护模式</td>
+          <td>社区驱动，节奏稳定</td>
+          <td>社区驱动，前沿模型 Day-0</td>
+          <td><span class="t">团队内部驱动</span>，开源是副产品</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>一句话收束：<b>vLLM 卖的是“什么都能跑”，DeepInfer 卖的是“这一个跑得最快”。</b></p>
+  <p>这两句话不在同一个竞争维度上。所以“DeepInfer 打赢 vLLM”这种说法本身就不成立——它们不是同一类东西。</p>
+</section>
+
+<hr class="sep">
+
+<section id="s5">
+  <h2><span class="num">5</span>真正的核心差异只有一条：用广度换深度</h2>
+  <p>通用引擎的每一处设计都在为“兼容”付税。</p>
+  <p>为了同时支持几百个模型架构，kernel 只能做到“普遍都快”，做不到“对某个结构极限快”；调度器必须保守，不能假设“下一层的 attention 一定长这样”；KV cache 的分页粒度、块大小、淘汰策略都取折中值。</p>
+  <p>这不是能力问题，是定位问题——<b>中央厨房不可能为一道菜改整条产线。</b></p>
+  <p>DeepInfer 把税免了，代价是只服务一道菜。只服务一个模型意味着它可以<b>提前知道</b>：专家的数量是多少、滑动窗口多大、MLA 把 KV 压成什么样、回溯长度上限在哪。于是能做出通用引擎结构上做不了的事。</p>
+
+  <figure>
+    <div class="fig">
+      <svg viewBox="0 0 760 330" role="img">
+        <title>三家引擎的定位坐标</title>
+        <desc>横轴是模型与硬件覆盖广度，纵轴是针对单个模型的优化深度。vLLM 在右下方，SGLang 在中间偏上，DeepInfer 在左上方。</desc>
+        <defs>
+          <marker id="ax" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#C9C4B6"/>
+          </marker>
+        </defs>
+        <line x1="86" y1="286" x2="726" y2="286" stroke="#C9C4B6" fill="none" stroke-width="1.2" marker-end="url(#ax)"/>
+        <line x1="86" y1="286" x2="86" y2="52" stroke="#C9C4B6" fill="none" stroke-width="1.2" marker-end="url(#ax)"/>
+        <text x="86" y="32" font-size="12" fill="#8C8C81" dominant-baseline="central">单模型优化深度 ↑</text>
+        <text x="726" y="310" font-size="12" fill="#8C8C81" text-anchor="end" dominant-baseline="central">模型 · 硬件覆盖广度 →</text>
+        <text x="118" y="252" font-size="11" fill="#A09B8D" dominant-baseline="central">越靠左上：能压榨的空间越大，能服务的场景越少</text>
+
+        <circle cx="186" cy="96" r="8" fill="#FBEEE7" stroke="#B4451F" stroke-width="2"/>
+        <text x="186" y="74" font-size="13.5" font-weight="700" fill="#B4451F" text-anchor="middle" dominant-baseline="central">DeepInfer</text>
+        <text x="186" y="120" font-size="11" fill="#8C8C81" text-anchor="middle" dominant-baseline="central">极窄，极深</text>
+
+        <circle cx="470" cy="150" r="8" fill="#E9F4F0" stroke="#1A6E5A" stroke-width="2"/>
+        <text x="470" y="128" font-size="13.5" font-weight="700" fill="#1A6E5A" text-anchor="middle" dominant-baseline="central">SGLang</text>
+        <text x="470" y="174" font-size="11" fill="#8C8C81" text-anchor="middle" dominant-baseline="central">广 + 前沿模型专项优化</text>
+
+        <circle cx="612" cy="222" r="8" fill="#EDF3F8" stroke="#2F6289" stroke-width="2"/>
+        <text x="612" y="200" font-size="13.5" font-weight="700" fill="#2F6289" text-anchor="middle" dominant-baseline="central">vLLM</text>
+        <text x="612" y="246" font-size="11" fill="#8C8C81" text-anchor="middle" dominant-baseline="central">最广，但不是最深</text>
+      </svg>
+    </div>
+    <figcaption>三家的差别不是“谁更强”，而是<b>各自站在坐标系的不同角落</b>。DeepInfer 把纵轴推到顶，代价是横轴几乎收缩成一个点——一个模型、两种芯片。</figcaption>
+  </figure>
+
+  <h3>两个只有“知道模型长什么样”才敢做的优化</h3>
+  <p><b>其一，只重跑 prompt 的最后一段。</b>DeepInfer 有个叫 SWA bounded replay 的机制，处理长输入时不再从头重算 decoder 层，只对 prompt 尾部一小段（V4.1 的默认设置是保留 140 个 token）重放，据官方说法能把 prefill 计算量近乎砍半。</p>
+  <p>为什么敢这么干？因为这个模型的注意力是滑动窗口的，更早的 token 本来就不参与当前计算。<b>这个优化不是“更快”，是“知道可以不算”。</b>通用引擎不敢做这个假设，因为换个模型假设就崩了。</p>
+  <p><b>其二，推测解码知道该信哪几个猜测。</b>常规推测解码是“草稿模型猜 5 个 token，主模型全部验证一遍”。DeepInfer 的 DSpark 多了一层：用一个置信度预测头先估算每个草稿 token 被接受的概率，只把验证算力花在最可能被接受的那几个上。结果是验证的 token 数少了约三成，而平均接受长度几乎没掉。</p>
+  <p>这就是所谓的<b>模型-引擎协同设计</b>（co-design）。模型和推理引擎是一起设计的，很多优化写在模型的假设里，而不是写在框架的兼容层里。<b>通用引擎抄不走这个，只能等模型开源之后追。</b></p>
+</section>
+
+<hr class="sep">
+
+<section id="s6">
+  <h2><span class="num">6</span>和 SGLang 比：最像的那个对手</h2>
+  <p>真正该拿来对照的其实是 SGLang，不是 vLLM。</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>对比项</th>
+          <th class="d">DeepInfer</th>
+          <th class="s">SGLang</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>设计起点</td>
+          <td>为自己的模型做到底</td>
+          <td>结构化生成 + 高性能运行时</td>
+        </tr>
+        <tr>
+          <td>KV / 缓存策略</td>
+          <td><span class="t">依赖外挂的 KV cache 系统（未开源）</span></td>
+          <td>RadixAttention，前缀复用是看家本领，缓存感知调度</td>
+        </tr>
+        <tr>
+          <td>规模化 EP</td>
+          <td>MoE EP + EPLB，decode 推荐 EP64 以上</td>
+          <td>DeepEP + EPLB + DeepGEMM 三件套，96 卡 H100 上能做到接近理论 EP 效率的九成</td>
+        </tr>
+        <tr>
+          <td>服务层</td>
+          <td><span class="t">没有，自己补</span></td>
+          <td>完整，OpenAI 兼容 API、PD/EPD 分离、多 LoRA</td>
+        </tr>
+        <tr>
+          <td>生态位</td>
+          <td>DeepSeek 内部引擎的公开版</td>
+          <td>40 万+ GPU 上跑着，RL rollout（Miles / slime / verl / AReaL）的事实标准后端</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>为什么说它最像？因为两者押注同一个方向：<b>DeepSeek 系超大 MoE + 大规模专家并行 + 前缀复用</b>。在这条赛道上，SGLang 是过去两年最认真的那个外围追赶者。</p>
+  <p>它们真正的差别是<b>闭环节奏</b>。SGLang 是“你开源，我 Day-0 跟上”的外圈；DeepInfer 是“我先设计好，再决定公开多少”的内圈。内圈自然有信息优势——你见过模型的下一代，别人没有。</p>
+  <div class="note warn">
+    <span class="tag">注意量级</span>
+    这个优势是<b>几个百分点的实现深度，不是数量级</b>。而且 SGLang 现在也能跑 DeepSeek-V4.1-Flash，也支持 DSpark，也有 batch-invariant 推理（<code>--enable-deterministic-inference</code>）。DeepInfer 那份“独家功能”清单，剥掉宣传滤镜后其实比看起来短。
+  </div>
+</section>
+
+<hr class="sep">
+
+<section id="s7">
+  <h2><span class="num">7</span>一份第三方实测，和它顺带标出的价签</h2>
+  <p>有人做了一次三方对照里最有信息量的实验：单机 8 张 B200，DeepInfer 与 vLLM 都用 DP8 + EP8，8K 输入 / 1K 输出，并发 16。</p>
+
+  <figure>
+    <div class="fig">
+      <svg viewBox="0 0 760 300" role="img">
+        <title>DeepInfer 与 vLLM 的关键指标对照</title>
+        <desc>输出吞吐上 DeepInfer 明显更高，生成阶段 token 间隔更低；但首 token 等待时间 vLLM 只有 DeepInfer 的一半左右。</desc>
+        <text x="0" y="18" font-size="12.5" font-weight="700" fill="#1A1A17" dominant-baseline="central">输出吞吐（tokens/s，越高越好）</text>
+        <text x="640" y="18" font-size="11" fill="#B4451F" text-anchor="end" dominant-baseline="central">+25.2%</text>
+
+        <text x="0" y="46" font-size="11" fill="#8C8C81" dominant-baseline="central">DeepInfer</text>
+        <rect x="86" y="36" width="632" height="20" rx="4" fill="#F2EFE8"/>
+        <rect x="86" y="36" width="632" height="20" rx="4" fill="#B4451F" opacity=".82"/>
+        <text x="706" y="46" font-size="11.5" font-weight="700" fill="#FFFFFF" text-anchor="end" dominant-baseline="central">1392</text>
+
+        <text x="0" y="76" font-size="11" fill="#8C8C81" dominant-baseline="central">vLLM</text>
+        <rect x="86" y="66" width="632" height="20" rx="4" fill="#F2EFE8"/>
+        <rect x="86" y="66" width="505" height="20" rx="4" fill="#2F6289" opacity=".72"/>
+        <text x="601" y="76" font-size="11.5" font-weight="700" fill="#264E6D" dominant-baseline="central">1112</text>
+
+        <line x1="0" y1="112" x2="760" y2="112" stroke="#E6E2D7"/>
+
+        <text x="0" y="136" font-size="12.5" font-weight="700" fill="#1A1A17" dominant-baseline="central">首 token 等待 TTFT（秒，越低越好）</text>
+        <text x="640" y="136" font-size="11" fill="#2F6289" text-anchor="end" dominant-baseline="central">vLLM 快一半</text>
+
+        <text x="0" y="164" font-size="11" fill="#8C8C81" dominant-baseline="central">DeepInfer</text>
+        <rect x="86" y="154" width="632" height="20" rx="4" fill="#F2EFE8"/>
+        <rect x="86" y="154" width="632" height="20" rx="4" fill="#B4451F" opacity=".82"/>
+        <text x="706" y="164" font-size="11.5" font-weight="700" fill="#FFFFFF" text-anchor="end" dominant-baseline="central">4.28 s</text>
+
+        <text x="0" y="194" font-size="11" fill="#8C8C81" dominant-baseline="central">vLLM</text>
+        <rect x="86" y="184" width="632" height="20" rx="4" fill="#F2EFE8"/>
+        <rect x="86" y="184" width="301" height="20" rx="4" fill="#2F6289" opacity=".72"/>
+        <text x="397" y="194" font-size="11.5" font-weight="700" fill="#264E6D" dominant-baseline="central">2.04 s</text>
+
+        <line x1="0" y1="230" x2="760" y2="230" stroke="#E6E2D7"/>
+        <text x="0" y="252" font-size="11.5" fill="#8C8C81" dominant-baseline="central">测试条件：同一台 8×B200，DP8 + EP8，8K 输入 / 1K 输出，并发 16，100 个请求</text>
+        <text x="0" y="274" font-size="11.5" fill="#B4451F" dominant-baseline="central">生成更快，但开口更慢 —— 这两个指标的裂缝，就是下面那张价签。</text>
+      </svg>
+    </div>
+    <figcaption>同一份数据里藏着两个相反的方向：<b>生成阶段 DeepInfer 赢，首字节 vLLM 赢。</b>只看一个数字，会得出完全相反的结论。</figcaption>
+  </figure>
+
+  <p>这组数据本身就是一次漂亮的对照实验，因为它同时量出了两件事。</p>
+  <p><b>吞吐赢</b>，赢在生成阶段的 kernel 和调度更贴这个模型——这正是第 5 节讲的“深度”。</p>
+  <p><b>首字输</b>，最合理的解释是缺了 KV cache 系统。8K 上下文的请求，每个都要从零 prefill 一遍；而 vLLM 有自动前缀缓存，重复的系统提示、工具说明、历史记录可以直接复用。</p>
+  <div class="note warn">
+    <span class="tag">核心洞见</span>
+    <b>换句话说，那 2 倍的 TTFT 差距，就是“没开源那部分”的价格标签。</b>
+  </div>
+  <p class="tbl-note">要提醒：这次测试配置没有针对性调优，DeepInfer 当时也没有 TP 路径、只能用 CP/DP 去对齐，所以这些数字不代表任何一方的上限，也不是官方数据。</p>
+</section>
+
+<hr class="sep">
+
+<section id="s8">
+  <h2><span class="num">8</span>它凭什么快：四个动作</h2>
+  <p>把散落的机制归拢一下，其实就四件事。</p>
+
+  <div class="moves">
+    <div class="move">
+      <div class="move-n">01</div>
+      <div>
+        <h4>少算不该算的</h4>
+        <p>SWA bounded replay，只重放 prompt 尾部一段。代价是它对模型结构有强假设，换个模型就失效。</p>
+      </div>
+    </div>
+    <div class="move">
+      <div class="move-n">02</div>
+      <div>
+        <h4>少验不该验的</h4>
+        <p>DSpark 的置信度调度。这里有个反直觉的细节：并发低的时候它<b>是负收益</b>（16 并发/rank 约 -1.5%），并发到 60 左右才赚 4%~7%。验证本来是投机生意——只有手上有一大批草稿可以挑，挑拣才有价值。</p>
+      </div>
+    </div>
+    <div class="move">
+      <div class="move-n">03</div>
+      <div>
+        <h4>让 CPU 别闲着</h4>
+        <p>异步调度，把排班和 GPU 执行重叠起来，默认开启。这类优化不惊艳，但在高并发下是持续漏水的桶。</p>
+      </div>
+    </div>
+    <div class="move">
+      <div class="move-n">04</div>
+      <div>
+        <h4>把散装 kernel 缝成流水线</h4>
+        <p>FlashMLA、DeepGEMM、DeepEP 这些库 2025 年就单独开源了。DeepInfer 的新东西是把它们和调度器、采样器编进同一条流水线，减少中间的数据搬运。</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>外加一件“听起来独家”的事</h3>
+  <p>它还提供 batch-invariant 推理和确定性采样——同样的输入，不管这一批里还塞了什么别的请求，结果都一样。对做评测和回归的人来说这是真需求。</p>
+  <p>但<b>这个想法不是它原创</b>：vLLM 有 <code>VLLM_BATCH_INVARIANT=1</code>（beta），SGLang 有 <code>--enable-deterministic-inference</code>，源头是 Thinking Machines 开源的那套 batch-invariant 算子。DeepInfer 的贡献是把这件事在自家模型上做成了生产可用，代价是<b>开确定性就得关掉 DSpark——可复现和更快，二选一。</b></p>
+</section>
+
+<hr class="sep">
+
+<section id="s9">
+  <h2><span class="num">9</span>三个“没给你”的东西，才是真正的成本</h2>
+  <p>README 里写得很客气，说一个完整推理服务还需要：KV cache 系统、VE/Prefill/Decode 分离、以及 DP 副本间的负载均衡。官方的解释是这三块和内部基础设施耦合太深。</p>
+  <p>这句解释是真的，但它只说了一半。另一半是：<b>这三块才是成本优势的来源。</b></p>
+
+  <figure>
+    <div class="fig">
+      <svg viewBox="0 0 760 200" role="img">
+        <title>一个完整推理服务的组成与开源状态</title>
+        <desc>四个方块从左到右分别是推理引擎、KV cache 系统、PD 分离编排、负载均衡。只有引擎是实线已开源，其余三块为虚线未开源。</desc>
+        <text x="0" y="16" font-size="11.5" fill="#8C8C81" dominant-baseline="central">一个能对外服务的推理系统 =</text>
+
+        <rect x="0" y="42" width="176" height="88" rx="10" fill="#FBEEE7" stroke="#B4451F"/>
+        <text x="16" y="66" font-size="12" font-weight="700" fill="#B4451F" dominant-baseline="central">推理引擎</text>
+        <text x="16" y="88" font-size="11" fill="#6E2A12" dominant-baseline="central">kernel · 调度</text>
+        <text x="16" y="106" font-size="11" fill="#6E2A12" dominant-baseline="central">并行 · 采样</text>
+        <text x="16" y="120" font-size="10" fill="#B4451F" dominant-baseline="central">✓ 已开源</text>
+
+        <text x="188" y="88" font-size="16" fill="#C9C4B6" dominant-baseline="central">+</text>
+
+        <rect x="206" y="42" width="176" height="88" rx="10" fill="#F9F8F4" stroke="#C9C4B6" stroke-dasharray="5 4"/>
+        <text x="222" y="66" font-size="12" font-weight="700" fill="#55554D" dominant-baseline="central">KV cache 系统</text>
+        <text x="222" y="88" font-size="11" fill="#8C8C81" dominant-baseline="central">跨请求复用</text>
+        <text x="222" y="106" font-size="11" fill="#8C8C81" dominant-baseline="central">3FS 存储层</text>
+        <text x="222" y="120" font-size="10" fill="#8C8C81" dominant-baseline="central">✗ 未开源</text>
+
+        <text x="394" y="88" font-size="16" fill="#C9C4B6" dominant-baseline="central">+</text>
+
+        <rect x="412" y="42" width="158" height="88" rx="10" fill="#F9F8F4" stroke="#C9C4B6" stroke-dasharray="5 4"/>
+        <text x="428" y="66" font-size="12" font-weight="700" fill="#55554D" dominant-baseline="central">PD 分离编排</text>
+        <text x="428" y="88" font-size="11" fill="#8C8C81" dominant-baseline="central">读写分机部署</text>
+        <text x="428" y="106" font-size="11" fill="#8C8C81" dominant-baseline="central">卡数与路由</text>
+        <text x="428" y="120" font-size="10" fill="#8C8C81" dominant-baseline="central">✗ 未开源</text>
+
+        <text x="582" y="88" font-size="16" fill="#C9C4B6" dominant-baseline="central">+</text>
+
+        <rect x="600" y="42" width="158" height="88" rx="10" fill="#F9F8F4" stroke="#C9C4B6" stroke-dasharray="5 4"/>
+        <text x="616" y="66" font-size="12" font-weight="700" fill="#55554D" dominant-baseline="central">负载均衡</text>
+        <text x="616" y="88" font-size="11" fill="#8C8C81" dominant-baseline="central">副本间分发</text>
+        <text x="616" y="106" font-size="11" fill="#8C8C81" dominant-baseline="central">防止空转</text>
+        <text x="616" y="120" font-size="10" fill="#8C8C81" dominant-baseline="central">✗ 未开源</text>
+
+        <text x="0" y="164" font-size="11.5" fill="#B4451F" dominant-baseline="central">开源的是“怎么算得快”，没开源的是“怎么算得少”。</text>
+        <text x="0" y="184" font-size="11.5" fill="#8C8C81" dominant-baseline="central">前者决定你的延迟，后者决定你的单位成本。</text>
+      </svg>
+    </div>
+    <figcaption>四块拼图只给了最左边那一块。剩下三块不是可有可无的配套，而是<b>把“算力很贵”变成“算力还行”的那三块</b>。</figcaption>
+  </figure>
+
+  <ul class="ul">
+    <li>那套 KV cache 保留策略——agent 流量留 3 天、聊天流量留 7 天，命中率 98% 以上，背后是 3FS 上约 100 PiB 的 SSD，每张在线 GPU 对应十来个 TB 的逻辑缓存。<b>缓存命中率不是一个 kernel 能跑出来的数字，是一整套存储系统跑出来的。</b></li>
+    <li>PD 分离让读 prompt 和写回答跑在不同机器上，各自按瓶颈配资源。官方说的“最小高效部署”，是 64 张卡做 prefill 加 64 张卡做 decode。</li>
+    <li>负载均衡决定这 128 张卡里有没有人在空转。</li>
+  </ul>
+  <p>所以这句判断可以写进笔记：<b>开源的是“怎么算得快”，没开源的是“怎么算得少”。</b></p>
+</section>
+
+<hr class="sep">
+
+<section id="s10">
+  <h2><span class="num">10</span>什么时候值得用，什么时候先别碰</h2>
+  <div class="pick">
+    <div class="pick-row">
+      <p><b>手上有 SM100 或昇腾 950，只跑 V4.1-Flash，做离线批量、评测、kernel 研究</b><br>值得读、值得跑。这是目前最真实的 DeepSeek 生产实现样本。</p>
+      <div class="pick-tag go">值得读，也值得跑</div>
+    </div>
+    <div class="pick-row">
+      <p><b>要对外提供 API、需要前缀复用、要支持多个模型</b><br>先别碰。vLLM 或 SGLang，缺的三块你得自己造。</p>
+      <div class="pick-tag wait">先别碰</div>
+    </div>
+    <div class="pick-row">
+      <p><b>想抄作业提升自己的引擎</b><br>抄思路，别抄代码。batch-invariant 的工程化路径、SWA bounded replay 的“知道可以不算”、置信度调度在高并发下的收益曲线，这三条都能迁移。</p>
+      <div class="pick-tag mix">抄思路</div>
+    </div>
+  </div>
+</section>
+
+<hr class="sep">
+
+<section id="s11">
+  <h2><span class="num">11</span>要留心的地方</h2>
+  <p>八条，按“最可能让你返工”的顺序排。点开看细节。</p>
+
+  <details class="caveat" open>
+    <summary><span class="ca-n">1</span>只支持一个模型</summary>
+    <div class="body">而且是一个 2026 年 10 月 17 日刚发布的 checkpoint。模型一换代，你得等它更新。这条决定了它不可能成为你的技术底座，只能是一个研究样本。</div>
+  </details>
+  <details class="caveat">
+    <summary><span class="ca-n">2</span>Hopper 系完全不支持</summary>
+    <div class="body">H100 / H200 / H800 不在支持列表里。这不是“还没适配”，是明确不在支持范围——官方只列了 SM100 和昇腾 950。手上只有 H 系列的话，连跑都跑不起来。</div>
+  </details>
+  <details class="caveat">
+    <summary><span class="ca-n">3</span>昇腾路径零 benchmark</summary>
+    <div class="body">有代码、有构建路径、有独立依赖文件，但所有性能曲线都在 NVIDIA 上测的。代码对等不等于性能对等，这一点目前无人验证——任何“昇腾已追平”的说法都还没有证据。</div>
+  </details>
+  <details class="caveat">
+    <summary><span class="ca-n">4</span>只有离线推理</summary>
+    <div class="body">没有 <code>vllm serve</code> 那种一行起服务的体验，OpenAI 兼容层要自己搭。社区已有第三方的 DeepInfer-server 这类封装，但那是别人写的胶水，不是官方产品。</div>
+  </details>
+  <details class="caveat">
+    <summary><span class="ca-n">5</span>没有 TP 路径</summary>
+    <div class="body">只能靠 CP / DP 组织并行。跟别人做对比时，配置天然不对齐——上面那份 8 卡实测就是因为这个，被迫用 CP1/DP8 去对齐 vLLM 的 TP1/DP8。</div>
+  </details>
+  <details class="caveat">
+    <summary><span class="ca-n">6</span>性能数字全是自测</summary>
+    <div class="body">155 万亿 token/天、每 GPU 每小时 38 美元这些数字来自公司公告，不是审计数据，也没说明是哪种卡、是收入还是利润。相对诚实的一点是：README 没做排行榜，只给了 Pareto 曲线和复现脚本。</div>
+  </details>
+  <details class="caveat">
+    <summary><span class="ca-n">7</span>确定性相关能力仅限 NVIDIA</summary>
+    <div class="body">batch-invariant 和确定性采样都标注了 NVIDIA only，而且开确定性还要牺牲 DSpark 的加速。</div>
+  </details>
+  <details class="caveat">
+    <summary><span class="ca-n">8</span>太新</summary>
+    <div class="body">首发 2026-10-20，距今两天。任何“生产可用”的说法现在都还只是承诺，不是记录。</div>
+  </details>
+</section>
+
+<hr class="sep">
+
+<section id="s12">
+  <h2><span class="num">12</span>用一句话记住它</h2>
+  <div class="closer">
+    <div class="mark">记住这一句</div>
+    <blockquote>
+      DeepInfer 是 DeepSeek 把自家后厨的门打开了：你能看到米其林怎么炒那道招牌菜，但<b>冷库和传菜系统还锁着</b>——所以你能学会“怎么算得快”，学不会“怎么算得便宜”。
+    </blockquote>
+    <p>再往上一层看，这次开源其实标出了一个正在发生的变化：开源正在从“给你一个能用的产品”变成“给你一份能读懂的实现”。前者省你的时间，后者省你的学费。这两件事的价值不一样，别混着算——<b>读它，是为了少走弯路；用它，得先问问自己有没有那 128 张卡和那座冷库。</b></p>
+  </div>
+</section>
+
+<footer>
+  机制描述与功能清单依据 DeepInfer 官方仓库 README 及随代码发布的部署问答整理；vLLM、SGLang 的能力状态依据各自 2026 年 9 月版本（vLLM v0.30.0、SGLang v0.5.20）；第三方实测数据来自 GPUStack 社区的公开对照测试，非官方基准，仅用于说明架构差异的方向性影响。事实核对截至 2026-10-22，具体能力与版本以官方文档为准。
+</footer>
+
+</main>
+
+<script>
+(function () {
+  var bar = document.getElementById('progress');
+  var links = [].slice.call(document.querySelectorAll('[data-nav]'));
+  var secs = links.map(function (a) {
+    return document.querySelector(a.getAttribute('href'));
+  });
+
+  function onScroll() {
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    var p = max > 0 ? h.scrollTop / max : 0;
+    if (bar) bar.style.transform = 'scaleX(' + Math.min(p, 1) + ')';
+
+    var y = h.scrollTop + 150;
+    var cur = -1;
+    for (var i = 0; i < secs.length; i++) {
+      if (secs[i] && secs[i].offsetTop <= y) cur = i;
+    }
+    for (var j = 0; j < links.length; j++) {
+      links[j].classList.toggle('on', j === cur);
+    }
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  onScroll();
+})();
+</script>
+</body>
+</html>

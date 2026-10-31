@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>给 AI 配一个随叫随到的军师 · Claude Code 顾问功能科普</title>
+<style>
+  :root{
+    --ink:#24241F; --ink-soft:#5E5E56; --ink-faint:#8E8E84;
+    --paper:#FFFFFF; --bg:#F6F4EF; --line:#E7E3D9;
+    --blue:#1B5FA5; --blue-bg:#E8F1FB; --blue-line:#B9D5F2;
+    --purple:#524AB4; --purple-bg:#EEEDFD; --purple-line:#CAC6F0;
+    --amber:#8A5408; --amber-bg:#FAEEDA; --amber-line:#EFD39B;
+    --teal:#0E6B54; --teal-bg:#E2F5EE; --teal-line:#A9DECB;
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Source Han Sans SC",sans-serif;
+    line-height:1.85; font-size:16px; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{ max-width:800px; margin:0 auto; padding:0 24px 96px; }
+
+  /* ---------- hero ---------- */
+  .hero{
+    background:linear-gradient(180deg,#FFFFFF 0%,#FBFAF6 100%);
+    border-bottom:1px solid var(--line);
+    padding:72px 24px 56px;
+    margin-bottom:40px;
+  }
+  .hero-inner{ max-width:800px; margin:0 auto; }
+  .kicker{
+    display:inline-block; font-size:13px; letter-spacing:.08em; color:var(--blue);
+    background:var(--blue-bg); border:1px solid var(--blue-line);
+    padding:4px 12px; border-radius:999px; margin-bottom:20px; font-weight:500;
+  }
+  .hero h1{
+    font-size:38px; line-height:1.3; font-weight:600; margin:0 0 16px; letter-spacing:-.01em;
+  }
+  .hero .sub{ font-size:17px; color:var(--ink-soft); margin:0 0 22px; max-width:640px; }
+  .hero .meta{ font-size:13px; color:var(--ink-faint); }
+
+  /* ---------- toc ---------- */
+  .toc{
+    background:var(--paper); border:1px solid var(--line); border-radius:14px;
+    padding:22px 26px; margin:0 0 52px;
+  }
+  .toc-title{ font-size:13px; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:12px; }
+  .toc ol{ margin:0; padding-left:20px; columns:2; column-gap:32px; }
+  .toc li{ font-size:14.5px; margin:5px 0; }
+  .toc a{ color:var(--ink-soft); text-decoration:none; }
+  .toc a:hover{ color:var(--blue); }
+  @media(max-width:620px){ .toc ol{ columns:1; } }
+
+  /* ---------- section ---------- */
+  section{ margin-bottom:56px; scroll-margin-top:20px; }
+  h2{
+    font-size:24px; font-weight:600; margin:0 0 22px; line-height:1.4;
+    display:flex; align-items:baseline; gap:12px; letter-spacing:-.01em;
+  }
+  h2 .num{
+    flex:none; display:inline-flex; align-items:center; justify-content:center;
+    width:30px; height:30px; border-radius:9px; font-size:15px; font-weight:600;
+    background:var(--blue-bg); color:var(--blue); border:1px solid var(--blue-line);
+    transform:translateY(2px);
+  }
+  h3{ font-size:18px; font-weight:600; margin:34px 0 12px; }
+  p{ margin:0 0 16px; }
+  strong{ font-weight:600; }
+  .lead{ font-size:17.5px; }
+  a{ color:var(--blue); }
+
+  /* ---------- cards ---------- */
+  .cards{ display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:26px 0; }
+  @media(max-width:620px){ .cards{ grid-template-columns:1fr; } }
+  .card{
+    border-radius:14px; padding:20px 22px; border:1px solid var(--line); background:var(--paper);
+  }
+  .card.blue{ background:var(--blue-bg); border-color:var(--blue-line); }
+  .card.purple{ background:var(--purple-bg); border-color:var(--purple-line); }
+  .card h4{ margin:0 0 4px; font-size:17px; font-weight:600; }
+  .card.blue h4{ color:#134A80; }
+  .card.purple h4{ color:#41399A; }
+  .card .role{ font-size:12.5px; color:var(--ink-faint); margin-bottom:14px; }
+  .card ul{ margin:0; padding-left:18px; font-size:14.5px; color:var(--ink-soft); }
+  .card li{ margin:5px 0; }
+  .card.blue li::marker{ color:var(--blue); }
+  .card.purple li::marker{ color:var(--purple); }
+
+  /* ---------- callout ---------- */
+  .note{
+    border-left:3px solid var(--amber-line); background:var(--amber-bg);
+    border-radius:0 12px 12px 0; padding:16px 20px; margin:22px 0; font-size:15px;
+  }
+  .note.info{ border-left-color:var(--blue-line); background:var(--blue-bg); }
+  .note.warn{ border-left-color:#E9B7B7; background:#FCEBEB; }
+  .note .tag{ font-weight:600; display:block; margin-bottom:4px; font-size:14px; }
+  .note.warn .tag{ color:#A32D2D; }
+
+  /* ---------- figure ---------- */
+  figure{ margin:28px 0; }
+  .fig{
+    background:var(--paper); border:1px solid var(--line); border-radius:14px;
+    padding:26px 20px 18px;
+  }
+  .fig svg{ display:block; width:100%; height:auto; }
+  figcaption{
+    font-size:13px; color:var(--ink-faint); text-align:center; margin-top:12px;
+  }
+
+  /* ---------- steps ---------- */
+  .steps{ counter-reset:step; margin:26px 0; }
+  .step{
+    position:relative; padding:0 0 22px 54px; border-left:2px solid var(--line); margin-left:15px;
+  }
+  .step:last-child{ border-left-color:transparent; padding-bottom:0; }
+  .step::before{
+    counter-increment:step; content:counter(step);
+    position:absolute; left:-16px; top:0;
+    width:30px; height:30px; border-radius:50%;
+    background:var(--blue); color:#fff; font-size:14px; font-weight:600;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .step h5{ margin:2px 0 4px; font-size:16px; font-weight:600; }
+  .step p{ margin:0; font-size:15px; color:var(--ink-soft); }
+
+  /* ---------- table ---------- */
+  .table-scroll{ overflow-x:auto; margin:22px 0; }
+  table{ border-collapse:collapse; width:100%; font-size:14.5px; background:var(--paper); border-radius:12px; overflow:hidden; }
+  th,td{ text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th{ background:#F1EFE9; font-weight:600; font-size:13.5px; color:var(--ink-soft); white-space:nowrap; }
+  tr:last-child td{ border-bottom:none; }
+  td code{ white-space:nowrap; }
+
+  /* ---------- code ---------- */
+  code{
+    font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    font-size:13.5px; background:#F1EFE9; padding:2px 6px; border-radius:5px; color:#3B3B33;
+  }
+  pre{
+    background:#2C2C28; color:#EDEBE4; padding:18px 20px; border-radius:12px;
+    overflow-x:auto; font-size:13.5px; line-height:1.7; margin:18px 0;
+  }
+  pre code{ background:none; color:inherit; padding:0; font-size:13.5px; }
+  pre .cmt{ color:#9C9A90; }
+
+  /* ---------- ratio bar ---------- */
+  .ratio{ margin:24px 0; }
+  .ratio-bar{ display:flex; height:44px; border-radius:10px; overflow:hidden; border:1px solid var(--line); }
+  .ratio-bar .seg{ display:flex; align-items:center; justify-content:center; font-size:13px; color:#fff; font-weight:500; }
+  .ratio-bar .cheap{ width:95%; background:#5B9BD5; }
+  .ratio-bar .strong{ width:5%; background:var(--purple); }
+  .ratio-legend{ display:flex; gap:24px; margin-top:10px; font-size:13.5px; color:var(--ink-soft); flex-wrap:wrap; }
+  .ratio-legend span::before{ content:"■"; margin-right:6px; }
+  .ratio-legend .l1::before{ color:#5B9BD5; }
+  .ratio-legend .l2::before{ color:var(--purple); }
+
+  /* ---------- misc ---------- */
+  .banner{
+    background:var(--purple-bg); border:1px solid var(--purple-line);
+    border-radius:14px; padding:26px 28px; margin:0 0 56px;
+    font-size:17px; line-height:1.8;
+  }
+  .banner .big{ display:block; font-size:19px; font-weight:600; color:#41399A; margin-bottom:6px; }
+  .good-bad{ display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:22px 0; }
+  @media(max-width:620px){ .good-bad{ grid-template-columns:1fr; } }
+  .good-bad .col{ border-radius:12px; padding:18px 20px; border:1px solid var(--line); }
+  .good-bad .yes{ background:var(--teal-bg); border-color:var(--teal-line); }
+  .good-bad .no{ background:#FCEBEB; border-color:#F0C4C4; }
+  .good-bad h4{ margin:0 0 10px; font-size:15.5px; }
+  .good-bad .yes h4{ color:var(--teal); }
+  .good-bad .no h4{ color:#A32D2D; }
+  .good-bad ul{ margin:0; padding-left:18px; font-size:14.5px; color:var(--ink-soft); }
+  .good-bad li{ margin:6px 0; }
+  footer{
+    border-top:1px solid var(--line); margin-top:64px; padding-top:26px;
+    font-size:13.5px; color:var(--ink-faint); text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="kicker">Claude Code · 功能科普</div>
+    <h1>给 AI 配一个随叫随到的军师</h1>
+    <p class="sub">读懂 Claude Code 的「顾问（Advisor）」功能 —— 不堆公式、不列数据，只讲清它是什么、为什么这样设计、聪明在哪里。</p>
+    <div class="meta">科普向解读 · 2026-10-08 · 阅读约 8 分钟</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <nav class="toc">
+    <div class="toc-title">目录</div>
+    <ol>
+      <li><a href="#s1">从一个大家都会遇到的场景说起</a></li>
+      <li><a href="#s2">一句话说清它是什么</a></li>
+      <li><a href="#s3">和老办法有什么不同</a></li>
+      <li><a href="#s4">实际使用时长什么样</a></li>
+      <li><a href="#s5">它背后是怎么运作的</a></li>
+      <li><a href="#s6">它聪明在哪（设计亮点）</a></li>
+      <li><a href="#s7">什么时候用，什么时候别用</a></li>
+      <li><a href="#s8">几个要留心的地方</a></li>
+      <li><a href="#s9">用一句话记住它</a></li>
+    </ol>
+  </nav>
+
+  <!-- ================= 1 ================= -->
+  <section id="s1">
+    <h2><span class="num">1</span>从一个大家都会遇到的场景说起</h2>
+    <p class="lead">你有没有过这种体验：</p>
+    <p>用 AI 帮你写代码，绝大多数时候它挺利索 —— 建文件、改函数、跑测试，一路顺下去。但偶尔会卡住：</p>
+    <ul>
+      <li>走到一个<strong>关键岔路口</strong>，方案 A 和方案 B 各有利弊，它选了一个，然后……越走越歪；</li>
+      <li>或者盯着同一个报错<strong>反反复复改</strong>，改了七八遍还在原地打转。</li>
+    </ul>
+    <p>这时候你心里最想要的是什么？</p>
+    <p>不是"换个更强的 AI 从头再做一遍"—— 那太慢也太贵。你想要的是：<strong>有个真正的高手，过来看一眼，说一句"你这个方向不对，应该这样"，然后让它接着干。</strong></p>
+    <p>Claude Code 的「顾问」功能，本质上就是在做这件事。</p>
+  </section>
+
+  <!-- ================= 2 ================= -->
+  <section id="s2">
+    <h2><span class="num">2</span>一句话说清它是什么</h2>
+    <div class="banner">
+      <span class="big">让正在干活的 AI，在关键时刻能"问"一个更聪明的 AI。</span>
+      这里有两个角色，我们给它们起个好记的名字 —— <strong>主角</strong> 和 <strong>军师</strong>。
+    </div>
+
+    <div class="cards">
+      <div class="card blue">
+        <h4>主角 · Executor</h4>
+        <div class="role">执行者｜通常是 Sonnet、Haiku</div>
+        <ul>
+          <li>从头到尾把活干完的那个人</li>
+          <li>负责<strong>动手</strong>：读文件、写代码、跑命令</li>
+          <li>自己判断"这儿是不是卡住了"</li>
+        </ul>
+      </div>
+      <div class="card purple">
+        <h4>军师 · Advisor</h4>
+        <div class="role">顾问｜通常是 Opus</div>
+        <ul>
+          <li>平时不露面，关键时刻才出场</li>
+          <li>负责<strong>动脑</strong>：看完现场，给一段建议</li>
+          <li><strong>不动手</strong>，不写最终答案</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note warn">
+      <span class="tag">关键点</span>
+      军师不动手。它不会调用工具，也不会直接产出给人看的答案。它只出主意，动手的仍然是主角 —— 这个"只出主意"的设定，正是整个设计最巧妙的地方。
+    </div>
+  </section>
+
+  <!-- ================= 3 ================= -->
+  <section id="s3">
+    <h2><span class="num">3</span>和老办法有什么不同</h2>
+    <p>要真正理解一个新东西，最好的方式是把它和你已经懂的东西放在一起看。我们一圈一圈往外比。</p>
+
+    <h3>3.1　老办法：老板指挥、员工干活</h3>
+    <p>大多数 AI 系统是这样搭的，很像现实里的公司：老板定战略、拆任务，员工执行。</p>
+
+    <figure>
+      <div class="fig">
+        <svg viewBox="0 0 720 268" role="img" xmlns="http://www.w3.org/2000/svg">
+          <title>orchestrator 加 subagent 的传统结构</title>
+          <defs>
+            <marker id="ar1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <rect x="250" y="26" width="220" height="64" rx="10" fill="#E8F1FB" stroke="#1B5FA5" stroke-width="1"/>
+          <text x="360" y="50" text-anchor="middle" dominant-baseline="central" font-size="15" font-weight="600" fill="#134A80">最强模型 · 老板</text>
+          <text x="360" y="70" text-anchor="middle" dominant-baseline="central" font-size="12.5" fill="#1B5FA5">全程参与：想战略 / 拆任务 / 汇总</text>
+
+          <path d="M360 90 V128" fill="none" stroke="#A9A99F" stroke-width="1.5"/>
+          <path d="M126 128 H594" fill="none" stroke="#A9A99F" stroke-width="1.5"/>
+          <path d="M126 128 V172" fill="none" stroke="#A9A99F" stroke-width="1.5" marker-end="url(#ar1)"/>
+          <path d="M360 128 V172" fill="none" stroke="#A9A99F" stroke-width="1.5" marker-end="url(#ar1)"/>
+          <path d="M594 128 V172" fill="none" stroke="#A9A99F" stroke-width="1.5" marker-end="url(#ar1)"/>
+          <text x="368" y="112" font-size="12" fill="#8E8E84">拆解 + 派活</text>
+
+          <g>
+            <rect x="51" y="172" width="150" height="64" rx="10" fill="#F1EFE9" stroke="#C9C6BC" stroke-width="1"/>
+            <text x="126" y="196" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#3B3B33">员工 A</text>
+            <text x="126" y="216" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#7A7A70">只干被派的小任务</text>
+          </g>
+          <g>
+            <rect x="285" y="172" width="150" height="64" rx="10" fill="#F1EFE9" stroke="#C9C6BC" stroke-width="1"/>
+            <text x="360" y="196" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#3B3B33">员工 B</text>
+            <text x="360" y="216" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#7A7A70">只干被派的小任务</text>
+          </g>
+          <g>
+            <rect x="519" y="172" width="150" height="64" rx="10" fill="#F1EFE9" stroke="#C9C6BC" stroke-width="1"/>
+            <text x="594" y="196" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#3B3B33">员工 C</text>
+            <text x="594" y="216" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#7A7A70">只干被派的小任务</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>传统结构：最强模型当"老板"，全程指挥，小模型当"员工"执行</figcaption>
+    </figure>
+
+    <p>这种模式的问题是：<strong>老板太贵了。</strong>哪怕只是"把这个文件夹重命名一下"这种小事，也要经过老板的手，于是最贵的那个人力被摊薄在了无数琐事上。</p>
+
+    <h3>3.2　顾问的办法：员工自己干，卡住了再问</h3>
+    <p>顾问模式把方向<strong>反了过来</strong>：让干活的模型独立跑完整趟，只在真正卡住时才抬头问一句。</p>
+
+    <figure>
+      <div class="fig">
+        <svg viewBox="0 0 720 296" role="img" xmlns="http://www.w3.org/2000/svg">
+          <title>顾问模式的反转结构</title>
+          <defs>
+            <marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+          <rect x="180" y="40" width="360" height="66" rx="10" fill="#E8F1FB" stroke="#1B5FA5" stroke-width="1"/>
+          <text x="360" y="66" text-anchor="middle" dominant-baseline="central" font-size="15" font-weight="600" fill="#134A80">主角 Executor（Sonnet / Haiku）</text>
+          <text x="360" y="86" text-anchor="middle" dominant-baseline="central" font-size="12.5" fill="#1B5FA5">自己端到端干完整趟活：动手 → 看结果 → 继续</text>
+
+          <rect x="180" y="190" width="360" height="66" rx="10" fill="#EEEDFD" stroke="#524AB4" stroke-width="1"/>
+          <text x="360" y="216" text-anchor="middle" dominant-baseline="central" font-size="15" font-weight="600" fill="#41399A">军师 Advisor（Opus）</text>
+          <text x="360" y="236" text-anchor="middle" dominant-baseline="central" font-size="12.5" fill="#524AB4">看完整现场 → 给一段建议</text>
+
+          <path d="M180 73 H140 V223 H180" fill="none" stroke="#524AB4" stroke-width="1.5" marker-end="url(#ar2)"/>
+          <text x="128" y="148" text-anchor="end" font-size="12.5" fill="#524AB4">卡住时求助</text>
+
+          <path d="M540 223 H580 V73 H540" fill="none" stroke="#1B5FA5" stroke-width="1.5" marker-end="url(#ar2)"/>
+          <text x="592" y="148" font-size="12.5" fill="#1B5FA5">建议回注</text>
+        </svg>
+      </div>
+      <figcaption>顾问模式：主角自己干，难处才向上问一句；军师只给建议，不接管任务</figcaption>
+    </figure>
+
+    <p>一句话对比：老办法是"<strong>老板全程盯着</strong>"，顾问是"<strong>员工自己干，难处问专家</strong>"。省钱的道理也就在这儿 —— 专家只在<strong>少数几个岔路口</strong>开口，而不是全程跟着。</p>
+
+    <h3>3.3　再往外比：还有几种"引入第二个模型"的方式</h3>
+    <p>其实"让两个模型配合"有很多种做法，顾问只是其中一种。它们的区别，全在于<strong>让强模型在什么时机出场</strong>：</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>方式</th><th>强模型什么时候出场</th><th>打个比方</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>顾问（Advisor）</strong></td>
+            <td>任务进行到关键决策点时，按需出场</td>
+            <td>干活的人旁边坐着个专家，卡住就回头问</td>
+          </tr>
+          <tr>
+            <td>子智能体（Subagent）</td>
+            <td>把一整块独立子任务外包出去时</td>
+            <td>找外包团队，整件事交给他们做</td>
+          </tr>
+          <tr>
+            <td>opusplan</td>
+            <td>只在"做计划"阶段出场，执行时换回便宜模型</td>
+            <td>专家先把方案定好，剩下照着方案做</td>
+          </tr>
+          <tr>
+            <td>切换模型 <code>/model</code></td>
+            <td>之后所有轮次都用它</td>
+            <td>干脆换个人，后面全程请这位强手上</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>看懂这张表，你就抓住了核心：<strong>顾问的独特之处，是"平时用便宜的，只在刀刃那一刻用贵的"。</strong></p>
+
+    <div class="note info">
+      <span class="tag">💡 延伸小知识：它和"混合专家（MoE）"是一回事吗？</span>
+      不是，但可以放在一起理解。<strong>MoE</strong> 是<em>一个模型内部</em>的机制 —— 模型里有很多"专家子网络"，处理每个问题时只激活其中一小部分；<strong>顾问</strong>则是<em>两个独立模型</em>之间的协作。一个是"一个人脑子里分工"，一个是"两个人配合干活"。但两者的思路很像：<strong>让擅长的人做擅长的事，不要所有力气都平均使。</strong>
+    </div>
+  </section>
+
+  <!-- ================= 4 ================= -->
+  <section id="s4">
+    <h2><span class="num">4</span>实际使用时长什么样</h2>
+
+    <h3>4.1　怎么打开</h3>
+    <p>在 Claude Code 里，有三种方式可以设置军师：</p>
+    <pre><code><span class="cmt"># 最常用：在当前会话里指定 Opus 当顾问</span>
+/advisor opus
+
+<span class="cmt"># 不带参数：弹出一个列表让你挑</span>
+/advisor
+
+<span class="cmt"># 关闭</span>
+/advisor off</code></pre>
+    <ul>
+      <li><strong>临时用</strong>：输入 <code>/advisor opus</code>，指定完就生效。</li>
+      <li><strong>想长期默认</strong>：在配置文件里写 <code>{ "advisorModel": "opus" }</code>。</li>
+      <li><strong>只给这一次会话用</strong>：启动时加参数 <code>claude --advisor opus</code>。</li>
+    </ul>
+    <p>设置好之后，界面会一直显示一行小提示：<code>Advisor Tool (experimental) is on and may use more tokens</code> —— 意思是"顾问已开启，可能会多花一点 token"，提醒你留意成本。</p>
+
+    <h3>4.2　有一条规定要记住</h3>
+    <p><strong>军师的能力，必须不低于主角。</strong>这条规则很直觉 —— 你请顾问，总不能让一个比你还菜的人来指点你吧？所以：</p>
+    <ul>
+      <li>Haiku（最便宜）可以<strong>请</strong>顾问，但<strong>不能当</strong>顾问；</li>
+      <li>想给 Opus 当顾问，得是同等或更强的模型（比如另一个 Opus）。</li>
+    </ul>
+    <p>如果你配的顾问比主角还弱，系统会<strong>直接拒绝</strong>，不会让它"滥竽充数"。</p>
+
+    <h3>4.3　顾问出场时，你能看到什么</h3>
+    <p>当主角决定请军师时，界面上会显示一行 <code>Advising</code>（正在咨询）。几秒后，这行字会变成下面三种状态之一：</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>状态</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Reviewed</strong></td><td>顾问读完了整个对话，给出了建议。按 <code>Ctrl+O</code> 可以看它到底说了什么</td></tr>
+          <tr><td><strong>Declined</strong></td><td>顾问认为"这个我不需要插嘴"，拒绝了。同样可以按 <code>Ctrl+O</code> 看原因</td></tr>
+          <tr><td><strong>Unavailable</strong></td><td>调用失败（网络、额度等问题），会显示错误信息</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>有意思的是：<strong>主角会认真听建议，但不会盲从。</strong>如果它照着建议做，结果实际测试失败了，或者本地文件的内容和建议矛盾，它会<strong>把冲突摆出来</strong>，而不是硬着头皮执行。必要时它会<strong>再问一次</strong>军师，把矛盾解决掉。</p>
+    <p>这个细节很人性化 —— 就像一个靠谱的员工，尊重专家的意见，但也相信自己的眼睛。</p>
+  </section>
+
+  <!-- ================= 5 ================= -->
+  <section id="s5">
+    <h2><span class="num">5</span>它背后是怎么运作的</h2>
+    <p>现在讲原理。但放心，我们不上技术细节，只说清"发生了什么"。</p>
+
+    <h3>5.1　一次"咨询"的完整过程</h3>
+    <div class="steps">
+      <div class="step">
+        <h5>主角发出求助信号</h5>
+        <p>当它判断"这里得问问"时，就发出一个求助请求。注意：<strong>要不要问、什么时候问，是主角自己决定的</strong>，不是提前写死的规则。</p>
+      </div>
+      <div class="step">
+        <h5>系统把"现场记录"打包送去</h5>
+        <p>到目前为止的<strong>完整对话</strong> —— 主角做过什么、看到过什么、说过什么，全部打包，一起发给军师。</p>
+      </div>
+      <div class="step">
+        <h5>军师在服务端读一遍，给出建议</h5>
+        <p>军师拿到的是一份完整的现场记录，所以它能"站在全局"给意见，而不是只看某个片段。</p>
+      </div>
+      <div class="step">
+        <h5>建议回到主角手里</h5>
+        <p>主角拿着这段建议，接着往下干。</p>
+      </div>
+    </div>
+
+    <p>整个过程有个很舒服的特点：<strong>它是在一次对话里一口气完成的</strong>，不需要来回"你问我答"地跑好几趟。对你来说，体验上就是"顺畅地继续往下走"。</p>
+
+    <h3>5.2　三个值得品味的细节</h3>
+    <p><strong>细节一：军师看的是"全量现场"，不是只言片语。</strong>这一点很重要。如果只把某个片段丢给顾问，它可能因为不知道前因后果而给错建议。给全量，顾问才能真正"有全局观"。</p>
+    <p><strong>细节二：军师不动手，而且不留思考痕迹。</strong>顾问只看、只想、只回一段结论，它<strong>不调用任何工具</strong>，而且它自己的"思考过程"在返回前会被丢掉，<strong>只把结论留下来</strong>。这么设计有两个好处：一是<strong>省钱</strong>（顾问通常只输出几百字，而不是重写整篇答案）；二是<strong>兼容性好</strong>（不管主角、军师是哪个版本的模型，都能配合）。</p>
+    <p><strong>细节三：什么时候问，由主角自己判断。</strong>没有"每三步必须问一次"这种死规则。主角依据对当前处境的判断来决定 —— 通常在<strong>定方案之前、反复报错的时候、以及宣布完成任务之前</strong>会问一问。想让它多问或少问，直接在指令里说就行，比如"继续之前先咨询一下顾问"。</p>
+  </section>
+
+  <!-- ================= 6 ================= -->
+  <section id="s6">
+    <h2><span class="num">6</span>它聪明在哪（设计亮点）</h2>
+    <p>理解了原理，我们再退一步看：<strong>这个设计到底妙在哪里？</strong></p>
+
+    <h3>亮点一：控制权牢牢握在"干活的人"手里</h3>
+    <p>主角掌握着整个任务的上下文、状态、工具，而军师被设计成一个"没有记忆、没有工具、只读一次现场、只回一段话"的角色 —— 像一个<strong>纯粹的函数</strong>：给它现场，它给你一句建议。这个设定让接入变得极其轻量，几乎不用改已有的系统。</p>
+
+    <h3>亮点二：把"该不该用强模型"的判断，交给了模型自己</h3>
+    <p>以前，工程师要手工设计"哪一步用便宜模型、哪一步用强模型"，这活儿又麻烦又容易出错。顾问模式索性<strong>把这个判断下放给正在干活的模型</strong>：它自己最清楚"我这儿是不是真的卡住了"。好处是省心，代价是<strong>可预测性下降</strong>。</p>
+
+    <h3>亮点三：省钱逻辑的转变</h3>
+    <p>普通省钱思路是"换个更便宜的模型"。顾问的思路是 —— <strong>模型还是那个便宜模型，但把最贵的那个，只用在刀刃上。</strong></p>
+
+    <div class="ratio">
+      <div class="ratio-bar">
+        <div class="seg cheap">够用的模型 · 承担绝大部分工作</div>
+        <div class="seg strong"></div>
+      </div>
+      <div class="ratio-legend">
+        <span class="l1">日常执行：便宜模型</span>
+        <span class="l2">关键决策：最强模型（只有少数几次）</span>
+      </div>
+    </div>
+
+    <p>用一句话概括这种结构性变化：<strong>把 5% 的工作交给最强模型、95% 交给够用的模型，往往比 100% 都交给中等模型更划算。</strong></p>
+
+    <h3>亮点四：用一点点信息折扣，换回成本和兼容性</h3>
+    <p>"不留思考痕迹、只回结论"这个设计，本质上是在做权衡：拿掉一部分可解释性，换来了更低的成本和更广的兼容性。工程上，这种"聪明的取舍"往往比"什么都想要"更实用。</p>
+  </section>
+
+  <!-- ================= 7 ================= -->
+  <section id="s7">
+    <h2><span class="num">7</span>什么时候用，什么时候别用</h2>
+
+    <div class="good-bad">
+      <div class="col yes">
+        <h4>✅ 适合的场景</h4>
+        <ul>
+          <li><strong>长任务</strong>，且大部分步骤是"体力活"、只有几个关键决定成败的。比如大型代码重构、反复报错的疑难调试、交付前让 AI"自己检查一遍"。</li>
+          <li><strong>量大又要在意成本</strong>的场景。比如批量处理文档、海量数据的初步整理 —— 用最便宜的模型当主角，配一个强顾问，既省钱又不至于太笨。</li>
+        </ul>
+      </div>
+      <div class="col no">
+        <h4>❌ 不适合的场景</h4>
+        <ul>
+          <li><strong>一问一答的短问题</strong>。比如"这个单词什么意思"—— 根本没有"规划"可言，叫顾问纯属多余。</li>
+          <li><strong>每一轮都真需要最强模型的任务</strong>。这种情况请<strong>直接换主角</strong>（用 <code>/model</code>），而不是给弱主角配顾问。</li>
+        </ul>
+      </div>
+    </div>
+
+    <p>判断口诀：<strong>"大部分步骤很平常，少数步骤特别关键"—— 就是顾问的主场。</strong></p>
+  </section>
+
+  <!-- ================= 8 ================= -->
+  <section id="s8">
+    <h2><span class="num">8</span>几个要留心的地方</h2>
+    <p>任何新功能都有边界，顾问也不例外：</p>
+    <ol>
+      <li><strong>它是"实验性"功能。</strong>官方明确标注 experimental，行为、价格、可用性都可能调整，用之前心里有数。</li>
+      <li><strong>目前只在 Anthropic 官方渠道能用。</strong>在 Amazon Bedrock、Google Cloud 等其他云平台上<strong>不提供</strong>。</li>
+      <li><strong>它确实会多花一点点钱。</strong>每次咨询都会按"军师"的价格消耗额度。只是因为问的次数少，通常总账还是更划算。</li>
+      <li><strong>偶尔会"静默失效"。</strong>比如主模型中途因繁忙被换成另一个模型，而这个新模型不满足"顾问配对"规则时，系统会<strong>悄悄地不再叫顾问，且不报错</strong>。用它做重要任务时，值得多留意一眼。</li>
+    </ol>
+  </section>
+
+  <!-- ================= 9 ================= -->
+  <section id="s9">
+    <h2><span class="num">9</span>用一句话记住它</h2>
+    <div class="banner">
+      <span class="big">让够用的 AI 当主力，把最强的 AI 当成随叫随到的军师 —— 好钢用在刀刃上。</span>
+      它的思想其实一点都不新，反而非常"人间"：<strong>平时让能干的人放手去做，遇到真正过不去的坎，再请高人来指点一句。</strong>只不过这一次，被安排上这套分工的，是两个 AI。
+    </div>
+  </section>
+
+  <footer>
+    本文为科普向解读，力求通俗易懂；具体功能与参数请以 Anthropic 官方最新文档为准。<br>
+    整理：YY ⚡ ｜ 2026-10-08
+  </footer>
+
+</div>
+</body>
+</html>

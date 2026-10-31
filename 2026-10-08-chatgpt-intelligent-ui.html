@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>当 ChatGPT 不再只是"说"给你听 · 科普版</title>
+<style>
+  :root{
+    --ink:#24241F; --ink-soft:#5E5E56; --ink-faint:#8E8E84;
+    --paper:#FFFFFF; --bg:#F6F4EF; --line:#E7E3D9;
+    --blue:#1B5FA5; --blue-bg:#E8F1FB; --blue-line:#B9D5F2;
+    --purple:#524AB4; --purple-bg:#EEEDFD; --purple-line:#CAC6F0;
+    --amber:#8A5408; --amber-bg:#FAEEDA; --amber-line:#EFD39B;
+    --teal:#0E6B54; --teal-bg:#E2F5EE; --teal-line:#A9DECB;
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Source Han Sans SC",sans-serif;
+    line-height:1.85; font-size:16px; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{ max-width:800px; margin:0 auto; padding:0 24px 96px; }
+
+  .hero{ background:linear-gradient(180deg,#FFFFFF 0%,#FBFAF6 100%); border-bottom:1px solid var(--line); padding:72px 24px 56px; margin-bottom:40px; }
+  .hero-inner{ max-width:800px; margin:0 auto; }
+  .kicker{ display:inline-block; font-size:13px; letter-spacing:.08em; color:var(--blue); background:var(--blue-bg); border:1px solid var(--blue-line); padding:4px 12px; border-radius:999px; margin-bottom:20px; font-weight:500; }
+  .hero h1{ font-size:38px; line-height:1.3; font-weight:600; margin:0 0 16px; letter-spacing:-.01em; }
+  .hero .sub{ font-size:17px; color:var(--ink-soft); margin:0 0 22px; max-width:640px; }
+  .hero .meta{ font-size:13px; color:var(--ink-faint); }
+
+  .toc{ background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:22px 26px; margin:0 0 52px; }
+  .toc-title{ font-size:13px; letter-spacing:.1em; color:var(--ink-faint); margin-bottom:12px; }
+  .toc ol{ margin:0; padding-left:20px; columns:2; column-gap:32px; }
+  .toc li{ font-size:14.5px; margin:5px 0; }
+  .toc a{ color:var(--ink-soft); text-decoration:none; }
+  .toc a:hover{ color:var(--blue); }
+  @media(max-width:620px){ .toc ol{ columns:1; } }
+
+  section{ margin-bottom:56px; scroll-margin-top:20px; }
+  h2{ font-size:24px; font-weight:600; margin:0 0 22px; line-height:1.4; display:flex; align-items:baseline; gap:12px; letter-spacing:-.01em; }
+  h2 .num{ flex:none; display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:9px; font-size:15px; font-weight:600; background:var(--blue-bg); color:var(--blue); border:1px solid var(--blue-line); transform:translateY(2px); }
+  h3{ font-size:18px; font-weight:600; margin:34px 0 12px; }
+  p{ margin:0 0 16px; }
+  strong{ font-weight:600; }
+  .lead{ font-size:17.5px; }
+  a{ color:var(--blue); }
+
+  .cards{ display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:26px 0; }
+  @media(max-width:620px){ .cards{ grid-template-columns:1fr; } }
+  .card{ border-radius:14px; padding:20px 22px; border:1px solid var(--line); background:var(--paper); }
+  .card.blue{ background:var(--blue-bg); border-color:var(--blue-line); }
+  .card.purple{ background:var(--purple-bg); border-color:var(--purple-line); }
+  .card h4{ margin:0 0 4px; font-size:17px; font-weight:600; }
+  .card.blue h4{ color:#134A80; } .card.purple h4{ color:#41399A; }
+  .card .role{ font-size:12.5px; color:var(--ink-faint); margin-bottom:14px; }
+  .card ul{ margin:0; padding-left:18px; font-size:14.5px; color:var(--ink-soft); }
+  .card li{ margin:5px 0; }
+  .card.blue li::marker{ color:var(--blue); } .card.purple li::marker{ color:var(--purple); }
+
+  .note{ border-left:3px solid var(--amber-line); background:var(--amber-bg); border-radius:0 12px 12px 0; padding:16px 20px; margin:22px 0; font-size:15px; }
+  .note.info{ border-left-color:var(--blue-line); background:var(--blue-bg); }
+  .note.warn{ border-left-color:#E9B7B7; background:#FCEBEB; }
+  .note .tag{ font-weight:600; display:block; margin-bottom:4px; font-size:14px; }
+  .note.warn .tag{ color:#A32D2D; }
+
+  figure{ margin:28px 0; }
+  .fig{ background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:26px 20px 18px; }
+  .fig svg{ display:block; width:100%; height:auto; }
+  figcaption{ font-size:13px; color:var(--ink-faint); text-align:center; margin-top:12px; }
+
+  .steps{ counter-reset:step; margin:26px 0; }
+  .step{ position:relative; padding:0 0 22px 54px; border-left:2px solid var(--line); margin-left:15px; }
+  .step:last-child{ border-left-color:transparent; padding-bottom:0; }
+  .step::before{ counter-increment:step; content:counter(step); position:absolute; left:-16px; top:0; width:30px; height:30px; border-radius:50%; background:var(--blue); color:#fff; font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:center; }
+  .step h5{ margin:2px 0 4px; font-size:16px; font-weight:600; }
+  .step p{ margin:0; font-size:15px; color:var(--ink-soft); }
+
+  .table-scroll{ overflow-x:auto; margin:22px 0; }
+  table{ border-collapse:collapse; width:100%; font-size:14.5px; background:var(--paper); border-radius:12px; overflow:hidden; }
+  th,td{ text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th{ background:#F1EFE9; font-weight:600; font-size:13.5px; color:var(--ink-soft); white-space:nowrap; }
+  tr:last-child td{ border-bottom:none; }
+  td code{ white-space:nowrap; }
+
+  code{ font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace; font-size:13.5px; background:#F1EFE9; padding:2px 6px; border-radius:5px; color:#3B3B33; }
+
+  .banner{ background:var(--purple-bg); border:1px solid var(--purple-line); border-radius:14px; padding:26px 28px; margin:0 0 32px; font-size:17px; line-height:1.8; }
+  .banner .big{ display:block; font-size:19px; font-weight:600; color:#41399A; margin-bottom:6px; }
+
+  .good-bad{ display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:22px 0; }
+  @media(max-width:620px){ .good-bad{ grid-template-columns:1fr; } }
+  .good-bad .col{ border-radius:12px; padding:18px 20px; border:1px solid var(--line); }
+  .good-bad .yes{ background:var(--teal-bg); border-color:var(--teal-line); }
+  .good-bad .no{ background:#FCEBEB; border-color:#F0C4C4; }
+  .good-bad h4{ margin:0 0 10px; font-size:15.5px; }
+  .good-bad .yes h4{ color:var(--teal); } .good-bad .no h4{ color:#A32D2D; }
+  .good-bad ul{ margin:0; padding-left:18px; font-size:14.5px; color:var(--ink-soft); }
+  .good-bad li{ margin:6px 0; }
+
+  ul.plain,ol.plain{ padding-left:22px; }
+  ul.plain li,ol.plain li{ margin:8px 0; }
+
+  footer{ border-top:1px solid var(--line); margin-top:64px; padding-top:26px; font-size:13.5px; color:var(--ink-faint); text-align:center; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="kicker">ChatGPT · 功能科普</div>
+    <h1>当 ChatGPT 不再只是"说"给你听</h1>
+    <p class="sub">看懂 OpenAI 新推的 Intelligent UI（智能界面）：不堆公式、不列数据，只讲清它是什么、为什么这样设计、聪明在哪里。</p>
+    <div class="meta">2026-10-08 · 阅读约 9 分钟</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <nav class="toc">
+    <div class="toc-title">目录</div>
+    <ol>
+      <li><a href="#s1">先从一个"读到一半就晕"的场景说起</a></li>
+      <li><a href="#s2">一句话说清它是什么</a></li>
+      <li><a href="#s3">和熟悉的东西有什么不同</a></li>
+      <li><a href="#s4">实际用起来长什么样</a></li>
+      <li><a href="#s5">背后是怎么运作的</a></li>
+      <li><a href="#s6">它聪明在哪</a></li>
+      <li><a href="#s7">什么时候用，什么时候别用</a></li>
+      <li><a href="#s8">要留心的地方</a></li>
+      <li><a href="#s9">用一句话记住它</a></li>
+    </ol>
+  </nav>
+
+  <section id="s1">
+    <h2><span class="num">1</span>先从一个"读到一半就晕"的场景说起</h2>
+    <p class="lead">你有没有过这种体验：想让 AI 讲清楚"飞机机翼为什么能产生升力"，它哗啦啦回你一大段文字，术语一个接一个，你读到第三行，脑子里那架飞机就已经坠机了。</p>
+    <p>换个场景也一样。你想比较两台笔记本、想算算提前还房贷能省多少钱、想学会麻将怎么胡——文字答案都没错，但就是"不好用"。因为有些事，天生就不是靠"读"能读明白的：<strong>你需要一张图、一个能拖动的东西、一个能按下去的按钮。</strong></p>
+    <p>OpenAI 最近给 ChatGPT 加了个新功能，叫 <strong>Intelligent UI（智能界面）</strong>，专门治这个毛病。它让 ChatGPT 的回答不再只有文字：该画图时画图，该上表格时上表格，该让你动手时，直接给你一个能拖、能点、能输入的小工具。</p>
+    <p>这篇只讲清三件事：<strong>它是什么、为什么这样设计、它聪明在哪。</strong></p>
+  </section>
+
+  <section id="s2">
+    <h2><span class="num">2</span>一句话说清它是什么</h2>
+    <div class="banner">
+      <span class="big">ChatGPT 从"只会动嘴的讲解员"，变成了"随身带一整箱教具的讲解员"。</span>
+      过去它只能用文字描述一件事；现在它一边讲，一边从箱子里掏出白板、剖面图、滑块、按钮，甚至当场给你拼一个小计算器。
+    </div>
+
+    <div class="cards">
+      <div class="card blue">
+        <h4>讲解员的大脑</h4>
+        <div class="role">决策者 ｜ GPT-6</div>
+        <ul>
+          <li>听问题、查资料</li>
+          <li>决定"这道题该怎么讲"</li>
+          <li>是画图还是写字、要不要给按钮，它拍板</li>
+        </ul>
+      </div>
+      <div class="card purple">
+        <h4>随身道具箱</h4>
+        <div class="role">执行者 ｜ 组件库＋编译器</div>
+        <ul>
+          <li>一箱标准化的"教具零件"</li>
+          <li>图表、按钮、表单、卡片……</li>
+          <li>一位"现场搭建师"把它们拼起来</li>
+        </ul>
+      </div>
+    </div>
+
+    <figure>
+      <div class="fig">
+        <svg viewBox="0 0 720 240" role="img" xmlns="http://www.w3.org/2000/svg">
+          <title>讲解员的两个角色：大脑负责讲什么，道具箱负责怎么呈现</title>
+          <desc>左边是负责判断的大脑，中间是装零件的道具箱，右边是一段图文按钮混合的回答。</desc>
+          <defs>
+            <marker id="ar1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#1B5FA5"/>
+            </marker>
+          </defs>
+          <rect x="25" y="70" width="200" height="100" rx="14" fill="#E8F1FB" stroke="#B9D5F2" stroke-width="1"/>
+          <text x="125" y="108" text-anchor="middle" dominant-baseline="central" font-size="15" font-weight="600" fill="#134A80">讲解员的大脑</text>
+          <text x="125" y="132" text-anchor="middle" dominant-baseline="central" font-size="13" fill="#1B5FA5">（GPT-6）</text>
+          <text x="125" y="155" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5E5E56">决定「讲什么」</text>
+
+          <path d="M228 120 H254" fill="none" stroke="#1B5FA5" stroke-width="1.6" marker-end="url(#ar1)"/>
+
+          <rect x="260" y="70" width="200" height="100" rx="14" fill="#EEEDFD" stroke="#CAC6F0" stroke-width="1"/>
+          <text x="360" y="108" text-anchor="middle" dominant-baseline="central" font-size="15" font-weight="600" fill="#41399A">随身道具箱</text>
+          <text x="360" y="132" text-anchor="middle" dominant-baseline="central" font-size="12.5" fill="#524AB4">（组件库＋编译器）</text>
+          <text x="360" y="155" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5E5E56">决定「怎么呈现」</text>
+
+          <path d="M463 120 H489" fill="none" stroke="#1B5FA5" stroke-width="1.6" marker-end="url(#ar1)"/>
+
+          <rect x="495" y="55" width="200" height="130" rx="14" fill="#FFFFFF" stroke="#E7E3D9" stroke-width="1"/>
+          <text x="595" y="78" text-anchor="middle" dominant-baseline="central" font-size="12.5" fill="#24241F">一段可看、可点的回答</text>
+          <rect x="515" y="94" width="160" height="8" rx="4" fill="#E7E3D9"/>
+          <rect x="515" y="112" width="72" height="44" rx="7" fill="#E8F1FB" stroke="#B9D5F2" stroke-width="1"/>
+          <rect x="524" y="130" width="8" height="18" rx="2" fill="#1B5FA5"/>
+          <rect x="538" y="122" width="8" height="26" rx="2" fill="#1B5FA5"/>
+          <rect x="552" y="134" width="8" height="14" rx="2" fill="#1B5FA5"/>
+          <rect x="597" y="112" width="78" height="20" rx="6" fill="#EEEDFD" stroke="#524AB4" stroke-width="1"/>
+          <text x="636" y="122" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#41399A">按钮</text>
+          <rect x="597" y="140" width="78" height="20" rx="6" fill="#E2F5EE" stroke="#A9DECB" stroke-width="1"/>
+          <text x="636" y="150" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#0E6B54">表单</text>
+          <rect x="515" y="164" width="160" height="8" rx="4" fill="#E7E3D9"/>
+        </svg>
+      </div>
+      <figcaption>大脑负责"讲什么"，道具箱负责"怎么呈现"——两者分工，才让回答既准确、又好看。</figcaption>
+    </figure>
+
+    <div class="note warn">
+      <span class="tag">关键点</span>
+      全篇最该记住的一条：<strong>现在"要不要画图"这件事，是模型自己判断的，不是工程师写死的规则。</strong>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="num">3</span>和熟悉的东西有什么不同</h2>
+    <p>先看老办法。过去的 ChatGPT 是一条"文字流水线"：你的问题进去，一段文字出来，从头到尾一条直线。<strong>新办法把这条直线拆开了</strong>——模型不再只是"写一段话"，而是先想清楚"这个答案用什么形式最好"，再从道具箱里挑零件，拼成一段图文混排、还能点、还能调的回应。</p>
+
+    <figure>
+      <div class="fig">
+        <svg viewBox="0 0 720 270" role="img" xmlns="http://www.w3.org/2000/svg">
+          <title>过去与现在的回答形态对比</title>
+          <desc>左边是过去的一大段纯文字，右边是现在图文、按钮、表单、滑块混排的回应。</desc>
+          <rect x="25" y="55" width="305" height="185" rx="14" fill="#F1EFE9" stroke="#E7E3D9" stroke-width="1"/>
+          <text x="177" y="82" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#5E5E56">过去：一大段文字</text>
+          <rect x="50" y="100" width="255" height="9" rx="4" fill="#DDD9CE"/>
+          <rect x="50" y="120" width="230" height="9" rx="4" fill="#DDD9CE"/>
+          <rect x="50" y="140" width="255" height="9" rx="4" fill="#DDD9CE"/>
+          <rect x="50" y="160" width="200" height="9" rx="4" fill="#DDD9CE"/>
+          <rect x="50" y="180" width="245" height="9" rx="4" fill="#DDD9CE"/>
+          <rect x="50" y="200" width="180" height="9" rx="4" fill="#DDD9CE"/>
+
+          <rect x="390" y="55" width="305" height="185" rx="14" fill="#FFFFFF" stroke="#E7E3D9" stroke-width="1"/>
+          <text x="542" y="82" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="600" fill="#1B5FA5">现在：图文＋可交互</text>
+          <rect x="410" y="98" width="140" height="9" rx="4" fill="#E7E3D9"/>
+          <rect x="410" y="118" width="120" height="58" rx="8" fill="#E8F1FB" stroke="#B9D5F2" stroke-width="1"/>
+          <rect x="426" y="152" width="14" height="16" rx="2" fill="#1B5FA5"/>
+          <rect x="446" y="142" width="14" height="26" rx="2" fill="#1B5FA5"/>
+          <rect x="466" y="132" width="14" height="36" rx="2" fill="#1B5FA5"/>
+          <rect x="542" y="118" width="133" height="24" rx="8" fill="#EEEDFD" stroke="#CAC6F0" stroke-width="1"/>
+          <text x="608" y="130" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#41399A">点我试试</text>
+          <rect x="410" y="186" width="120" height="36" rx="8" fill="#E2F5EE" stroke="#A9DECB" stroke-width="1"/>
+          <text x="470" y="204" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0E6B54">输入框</text>
+          <rect x="542" y="196" width="100" height="6" rx="3" fill="#E7E3D9"/>
+          <circle cx="602" cy="199" r="8" fill="#524AB4"/>
+        </svg>
+      </div>
+      <figcaption>老办法把答案"写出来"，新办法把答案"做出来"——呈现形式本身，成了一段回答的一部分。</figcaption>
+    </figure>
+
+    <p>一句话对比：<strong>老办法是"把答案说出来"，新办法是"把答案做出来"。</strong></p>
+
+    <h3>3.1　还有哪些相似概念</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>方式</th><th>什么时候出场</th><th>打个比方</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Intelligent UI</strong></td><td>回答里自动嵌入图表 / 按钮 / 小工具</td><td>讲解员随身带教具，边讲边用</td></tr>
+          <tr><td>普通文字对话</td><td>一句话就能说清的事</td><td>打电话问路</td></tr>
+          <tr><td>生成式产物面板<br>（画布 / Artifacts 一类）</td><td>要一个完整、可留存、可反复编辑的作品</td><td>讲完课，另送你一本讲义，去别处翻</td></tr>
+          <tr><td>插件 / 外部工具</td><td>要连到外部系统真去办事</td><td>请外包公司来干活</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note info">
+      <span class="tag">💡 延伸小知识：Intelligent UI 和"生成式 UI"是一回事吗？</span>
+      不是。<strong>"生成式 UI（Generative UI）"</strong>是个更大的行业概念——泛指"让 AI 动态生成界面"这件事。Intelligent UI 是 OpenAI 给这套思路的<strong>具体实现</strong>，它有两个鲜明特征：一是<strong>原生</strong>（用官方做好的标准零件，不是从零写页面），二是<strong>嵌在对话里、可流式出现</strong>（不用另开一个面板）。别把"一个理念"和"一个产品功能"混成一件事。
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2><span class="num">4</span>实际用起来长什么样</h2>
+    <p>用法还是那句话：<strong>用自然语言提需求，别的不用管。</strong>你不需要去选"图表模式"或"计算器模式"，模型自己判断。你会看到这几种东西：</p>
+    <ul class="plain">
+      <li><strong>画出来的解释</strong>：问机翼怎么产生升力，它直接画剖面图和气流图；问自行车的七档变速结构，它画一张带按钮的图，点不同部件还能高亮。</li>
+      <li><strong>能调的图表</strong>：讲经济概念时给你一张可交互的曲线图，你拖参数，结果实时变。</li>
+      <li><strong>能用的工具</strong>：让它做个"分摊账单的计算器""退休储蓄试算器"，甚至一个小游戏——直接在对话里生成，拿来就能用。</li>
+      <li><strong>该简单就简单</strong>：如果一句话就能答清楚，它还是老老实实回你一句话，不会为了炫技硬塞图。</li>
+    </ul>
+
+    <figure>
+      <div class="fig">
+        <svg viewBox="0 0 720 270" role="img" xmlns="http://www.w3.org/2000/svg">
+          <title>同一段对话里直接生成、拿来就能用的小工具</title>
+          <desc>一个账单分摊计算器的示意：输入总金额、人数、是否含服务费，右侧实时给出每人应付。</desc>
+          <rect x="60" y="30" width="600" height="215" rx="16" fill="#FFFFFF" stroke="#E7E3D9" stroke-width="1"/>
+          <text x="84" y="58" dominant-baseline="central" font-size="15" font-weight="600" fill="#134A80">账单分摊计算器</text>
+          <line x1="60" y1="80" x2="660" y2="80" stroke="#E7E3D9" stroke-width="1"/>
+
+          <text x="84" y="105" dominant-baseline="central" font-size="13" fill="#5E5E56">总金额</text>
+          <rect x="200" y="90" width="140" height="30" rx="8" fill="#F1EFE9" stroke="#E7E3D9" stroke-width="1"/>
+          <text x="214" y="105" dominant-baseline="central" font-size="13" fill="#24241F">¥ 380</text>
+
+          <text x="84" y="145" dominant-baseline="central" font-size="13" fill="#5E5E56">人数</text>
+          <rect x="200" y="130" width="140" height="30" rx="8" fill="#F1EFE9" stroke="#E7E3D9" stroke-width="1"/>
+          <text x="214" y="145" dominant-baseline="central" font-size="13" fill="#24241F">4 人</text>
+
+          <text x="84" y="185" dominant-baseline="central" font-size="13" fill="#5E5E56">含服务费</text>
+          <rect x="200" y="171" width="62" height="28" rx="14" fill="#E8F1FB" stroke="#B9D5F2" stroke-width="1"/>
+          <circle cx="249" cy="185" r="11" fill="#1B5FA5"/>
+          <text x="278" y="185" dominant-baseline="central" font-size="12" fill="#5E5E56">开</text>
+
+          <rect x="400" y="92" width="230" height="118" rx="12" fill="#E2F5EE" stroke="#A9DECB" stroke-width="1"/>
+          <text x="515" y="122" text-anchor="middle" dominant-baseline="central" font-size="13" fill="#0E6B54">每人应付</text>
+          <text x="515" y="160" text-anchor="middle" dominant-baseline="central" font-size="30" font-weight="700" fill="#0E6B54">¥ 95</text>
+          <text x="515" y="190" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#5E5E56">实时随参数变化</text>
+
+          <text x="84" y="228" dominant-baseline="central" font-size="12" fill="#8E8E84">↑ 这是在同一段对话里直接生成、拿来就能用的小工具</text>
+        </svg>
+      </div>
+      <figcaption>界面不再是"另一件东西"，它就是回答本身——能输入、能调参、能立刻看到结果。</figcaption>
+    </figure>
+  </section>
+
+  <section id="s5">
+    <h2><span class="num">5</span>背后是怎么运作的</h2>
+    <p>看着像魔法，其实是四个动作串起来的：</p>
+    <div class="steps">
+      <div class="step"><h5>先判断</h5><p>模型读完你的问题，先决定"呈现形式"。比较类问题适合左右并排，解释类问题适合交互图，简单事实类就用文字。</p></div>
+      <div class="step"><h5>挑零件</h5><p>OpenAI 事先做好了一箱"原生组件"——图表、按钮、表单、卡片等标准零件，模型从中挑合适的。</p></div>
+      <div class="step"><h5>现场拼装</h5><p>编译器（compiler）一边生成、一边把界面拼出来。所以界面是"长出来"的，不是等全部写完才一次性弹出——你几乎立刻看到第一版，后面再逐步补全。</p></div>
+      <div class="step"><h5>边想边答</h5><p>这是 GPT-6 带来的另一处变化。过去的推理模型要"想完才开口"，你得干等；现在它能把思考和回答交错进行，边查边答，先给你能看的，再补更全的。</p></div>
+    </div>
+
+    <figure>
+      <div class="fig">
+        <svg viewBox="0 0 720 220" role="img" xmlns="http://www.w3.org/2000/svg">
+          <title>从"干等"到"边想边答"的等待体验对比</title>
+          <desc>上一行是过去必须等模型想完才给出完整回答，下一行是现在思考与回答交错出现、逐步补全。</desc>
+          <text x="20" y="59" dominant-baseline="central" font-size="13" fill="#8E8E84">过去</text>
+          <rect x="70" y="42" width="380" height="34" rx="8" fill="#F1EFE9" stroke="#E7E3D9" stroke-width="1"/>
+          <text x="260" y="59" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#8E8E84">……干等，屏幕上什么都没出现……</text>
+          <rect x="460" y="42" width="200" height="34" rx="8" fill="#E8F1FB" stroke="#B9D5F2" stroke-width="1"/>
+          <text x="560" y="59" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#134A80">完整回答一次性给出</text>
+
+          <text x="20" y="149" dominant-baseline="central" font-size="13" fill="#5E5E56">现在</text>
+          <rect x="70" y="132" width="90" height="34" rx="8" fill="#EEEDFD" stroke="#CAC6F0" stroke-width="1"/>
+          <text x="115" y="149" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#41399A">思考</text>
+          <rect x="170" y="132" width="150" height="34" rx="8" fill="#E8F1FB" stroke="#B9D5F2" stroke-width="1"/>
+          <text x="245" y="149" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#134A80">先给第一版</text>
+          <rect x="330" y="132" width="80" height="34" rx="8" fill="#EEEDFD" stroke="#CAC6F0" stroke-width="1"/>
+          <text x="370" y="149" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#41399A">再想</text>
+          <rect x="420" y="132" width="150" height="34" rx="8" fill="#E8F1FB" stroke="#B9D5F2" stroke-width="1"/>
+          <text x="495" y="149" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#134A80">逐步补全</text>
+          <rect x="580" y="132" width="80" height="34" rx="8" fill="#E2F5EE" stroke="#A9DECB" stroke-width="1"/>
+          <text x="620" y="149" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0E6B54">完成</text>
+        </svg>
+      </div>
+      <figcaption>为什么这么设计？因为等待最伤体验——把一个长回答拆成"早点给、慢慢补"，用户感知上的等待就短了一截。</figcaption>
+    </figure>
+  </section>
+
+  <section id="s6">
+    <h2><span class="num">6</span>它聪明在哪</h2>
+
+    <h3>亮点一：把"该不该画图"这个判断，教给了模型本身</h3>
+    <p>过去的 AI 产品里，"怎么排版"往往是工程师写死的规则；Intelligent UI 是把"设计决策"当成模型的一项能力来训练——它会被反复评估"这个界面清不清楚、有没有用、完不完整"。<strong>代价是：模型的审美和判断会犯错，而且需要时间慢慢变好</strong>（官方也承认这项判断会随迭代提升）。</p>
+
+    <h3>亮点二：原生组件 = 视觉不塌方</h3>
+    <p>模型不是从零画网页，而是从"官方零件箱"里拿件。好处是每个回答都有统一的设计底子，不会出现一个回答花里胡哨、另一个丑得没法看。<strong>限制也在于此</strong>：可选的呈现形式被零件箱框住了，想玩新花样得等官方上新。</p>
+
+    <figure>
+      <div class="fig">
+        <svg viewBox="0 0 720 200" role="img" xmlns="http://www.w3.org/2000/svg">
+          <title>从官方零件箱取件，让每个回答都有统一的设计底子</title>
+          <desc>左边是官方零件箱（图表、按钮、表单、卡片），右边是风格统一的两个回答示意。</desc>
+          <text x="170" y="40" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#41399A">官方零件箱（模型从这儿取件）</text>
+          <rect x="30" y="54" width="280" height="118" rx="14" fill="#EEEDFD" stroke="#CAC6F0" stroke-width="1"/>
+          <rect x="52" y="74" width="110" height="30" rx="8" fill="#FFFFFF" stroke="#CAC6F0" stroke-width="1"/>
+          <text x="107" y="89" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#524AB4">图表</text>
+          <rect x="176" y="74" width="112" height="30" rx="8" fill="#FFFFFF" stroke="#CAC6F0" stroke-width="1"/>
+          <text x="232" y="89" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#524AB4">按钮</text>
+          <rect x="52" y="116" width="110" height="30" rx="8" fill="#FFFFFF" stroke="#CAC6F0" stroke-width="1"/>
+          <text x="107" y="131" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#524AB4">表单</text>
+          <rect x="176" y="116" width="112" height="30" rx="8" fill="#FFFFFF" stroke="#CAC6F0" stroke-width="1"/>
+          <text x="232" y="131" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#524AB4">卡片</text>
+
+          <path d="M314 113 H354" fill="none" stroke="#1B5FA5" stroke-width="1.6" marker-end="url(#ar2)"/>
+          <defs>
+            <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#1B5FA5"/>
+            </marker>
+          </defs>
+
+          <text x="530" y="40" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5E5E56">每个回答都有统一的设计底子</text>
+          <rect x="372" y="54" width="300" height="52" rx="12" fill="#FFFFFF" stroke="#E7E3D9" stroke-width="1"/>
+          <rect x="390" y="70" width="120" height="8" rx="4" fill="#E7E3D9"/>
+          <rect x="390" y="86" width="72" height="12" rx="4" fill="#E8F1FB" stroke="#B9D5F2" stroke-width="1"/>
+          <rect x="372" y="118" width="300" height="52" rx="12" fill="#FFFFFF" stroke="#E7E3D9" stroke-width="1"/>
+          <rect x="390" y="134" width="180" height="8" rx="4" fill="#E7E3D9"/>
+          <rect x="390" y="150" width="52" height="12" rx="4" fill="#EEEDFD" stroke="#CAC6F0" stroke-width="1"/>
+        </svg>
+      </div>
+      <figcaption>统一零件 = 统一观感。用户不会因为这个回答"审美翻车"，但也意味着新花样要等官方上新。</figcaption>
+    </figure>
+
+    <h3>亮点三：渐进式呈现</h3>
+    <p>也就是上面说的"界面长出来"——边生成、边可见，不必等全部完成。</p>
+  </section>
+
+  <section id="s7">
+    <h2><span class="num">7</span>什么时候用，什么时候别用</h2>
+    <div class="good-bad">
+      <div class="col yes"><h4>✅ 适合的场景</h4><ul>
+        <li>学抽象概念：物理原理、经济模型、机械结构</li>
+        <li>需要比较与决策：产品对比、方案权衡</li>
+        <li>"动手算一算"的轻工具：账单分摊、储蓄试算、单位换算</li>
+        <li>快速看懂一张地图、一份流程</li>
+      </ul></div>
+      <div class="col no"><h4>❌ 不适合的场景</h4><ul>
+        <li>一句话就能答的问题（它做得到，但你不需要花哨）</li>
+        <li>需要严谨留存、反复编辑的长文档</li>
+        <li>要求绝对精确的专业计算——工具也是模型现场生成的</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2><span class="num">8</span>要留心的地方</h2>
+    <ol class="plain">
+      <li><strong>它还在演进。</strong>Intelligent UI 属于新上线的能力，官方也承认模型的"设计判断"会随时间变好——换句话说，<strong>现在它挑错呈现形式、画错图，都可能发生</strong>。</li>
+      <li><strong>别默认它更权威。</strong>界面好看 ≠ 内容正确。图越漂亮，人越容易放松警惕，这一点反而要格外留神。</li>
+      <li><strong>可用范围有先后。</strong>这次随 GPT-6 一起推送，先覆盖 Plus / Pro / Business / Enterprise 等付费层，免费与低价档随后跟进；具体以官方说明为准。</li>
+      <li><strong>可以调。</strong>如果你嫌图太多，可以把它调收敛——不喜欢花哨的人有得选。</li>
+    </ol>
+  </section>
+
+  <section id="s9">
+    <h2><span class="num">9</span>用一句话记住它</h2>
+    <div class="banner">
+      <span class="big">Intelligent UI = 让 ChatGPT 从"说给你听"，升级成"做给你看"——好答案不只靠一张嘴，还靠一双手。</span>
+      说到底，这件事一点都不"科幻"。一个真正好的老师，从来不只是口才好，而是知道<strong>什么时候该画一笔、什么时候该让你自己动手试一下</strong>。ChatGPT 这次学的，正是这门"怎么把话讲明白"的表达艺术。
+    </div>
+  </section>
+
+  <footer>
+    本文为科普向解读，力求通俗易懂；具体产品名、版本与上线范围请以 OpenAI 官方最新说明为准。<br>
+    整理：YY ⚡ ｜ 2026-10-08
+  </footer>
+
+</div>
+</body>
+</html>
