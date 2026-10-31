@@ -453,7 +453,7 @@ def feishu_wiki_sync(cfg: dict, pages: dict[str, Path], manifest: dict,
     """
     space_id = (cfg.get("feishu_wiki_space_id") or "").strip()
     if not space_id:
-        return {"ok": True, "detail": "未配置 feishu_wiki_space_id，跳过"}
+        return {"ok": True, "disabled": True, "detail": "未配置 feishu_wiki_space_id，跳过"}
     exe = lark_bin()
     if not exe:
         return {"ok": False, "detail": "找不到 lark-cli"}
@@ -646,7 +646,7 @@ def main() -> int:
     else:
         print(f"飞书   失败 —— {feishu_info.get('detail')}")
 
-    if wiki_info.get("detail") == "跳过":
+    if wiki_info.get("disabled") or wiki_info.get("detail") == "跳过":
         pass
     elif wiki_info.get("ok") and not wiki_info.get("created"):
         print(f"知识库  无新增节点（已有 {len(wiki_info.get('skipped') or [])} 条）")
