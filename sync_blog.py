@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""blogsite 三边同步：本地 ↔ GitHub ↔ 飞书。
+"""blogsite 同步：本地 → GitHub + 飞书知识库。
 
 目录约定（改代码前先读）：
 
@@ -8,25 +8,39 @@
     ├── 2026-10-30-xxx.html        单页，平铺在根目录，一个文件一页
     ├── agent-basics/index.html    栏目页，只在 --build-collections 时生成
     ├── collections/manifest.yaml  分类元数据，不发布
-    ├── .state/                    基线与临时镜像区，不发布
+    ├── .state/                    状态与临时上传区，不发布
     └── sync_blog.py               本脚本
 
 为什么单页放仓库根而不是 blog/ 子目录：GitHub 项目页的站点根本来就是
 /blog/，仓库里再套一层 blog/ 就会变成 /blog/blog/。多一层路径没有意义。
 
+两个目的地，一条内部管道：
+
+    GitHub     公开阅读端
+    飞书知识库  私人阅读端（节点点开就是预览）
+    云空间      **不是目的地**，只是知识库节点的载体。飞书 wiki 原生节点
+                不支持 file 类型，只能建 shortcut 指向云空间里的一份文件，
+                所以文件必须传，但用户不需要关心它。
+
 三条设计约束：
 
 1. **只增不删。** 链路上没有任何删除动作。本地删了文件，远端保留，
-   日报里标一句「远端多出来」，由人决定要不要清。
+   日报里标一句「云空间多出来」，由人决定要不要清。
 2. **不建栏目。** 栏目页只在显式 --build-collections 时生成，依据是
    manifest 里已经写好的 collection 字段。脚本不做任何分类判断。
-3. **失败就停，不重试。** 重试只会制造半同步状态，把错误原样报出来更有价值。
+3. **同步状态按通道算，不合成一个总标记。** 旧版用一个 synced_at 同时代表
+   三个目的地，结果 --no-git 也会判成功、--no-feishu 也会把文件标成已同步。
+   现在 GitHub 问 git、知识库问 node-list、云空间记 sha，各算各的。
 
 用法：
     python sync_blog.py                       # 完整同步 + 日报
     python sync_blog.py --check               # 只对账，不写不推
     python sync_blog.py --no-feishu           # 只推 GitHub
+    python sync_blog.py --no-state            # 只生成本地文件，不碰 .state
     python sync_blog.py --build-collections   # 按 manifest 生成栏目页
+
+解释器：PATH 上的 python 如果没装 pyyaml，脚本会自己换一个能用的解释器
+重新执行（见 _bootstrap_yaml），所以直接 `python sync_blog.py` 就行。
 """
 
 from __future__ import annotations
@@ -34,6 +48,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -42,10 +57,59 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+
+def _has_yaml(py: str) -> bool:
+    try:
+        return subprocess.run([py, "-c", "import yaml"],
+                              capture_output=True, timeout=30).returncode == 0
+    except Exception:
+        return False
+
+
+def _bootstrap_yaml() -> None:
+    """当前解释器没有 pyyaml 时，换一个有 pyyaml 的解释器重新执行自己。
+
+    起因：PATH 上的 python 是 WorkBuddy 自带的 3.13，没装 pyyaml，手敲
+    `python sync_blog.py` 会直接退出。定时任务用的是写死的绝对路径，所以
+    只有人手动跑的时候才踩雷——换个脚本入口不如让它自己找对解释器。
+
+    这一段只用标准库，所以「错的解释器」也能跑得起来。
+    """
+    if os.environ.get("BLOGSITE_REEXEC") == "1":
+        return  # 已经换过一次，别再套娃
+    here = os.path.abspath(sys.executable)
+    candidates = [
+        os.environ.get("BLOGSITE_PY"),
+        r"D:\ProgramFiles\anaconda3\python.exe",
+        os.path.join(os.environ.get("USERPROFILE") or "", ".workbuddy", "binaries",
+                     "python", "envs", "default", "Scripts", "python.exe"),
+        "python",
+        "python3",
+    ]
+    for py in filter(None, candidates):
+        try:
+            if os.path.abspath(py) == here:
+                continue
+        except Exception:
+            pass
+        if _has_yaml(py):
+            sys.stderr.write(f"[bootstrap] 当前解释器缺 pyyaml，改用 {py}\n")
+            env = dict(os.environ, BLOGSITE_REEXEC="1")
+            raise SystemExit(subprocess.call(
+                [py, os.path.abspath(__file__), *sys.argv[1:]], env=env))
+
+
 try:
     import yaml
 except ImportError:
-    sys.exit("缺 pyyaml：需要 pip install pyyaml")
+    _bootstrap_yaml()
+    sys.exit(
+        "缺 pyyaml，且没找到可用的解释器。\n"
+        "已试过：环境变量 BLOGSITE_PY、anaconda3、WorkBuddy envs/default、PATH 上的 python。\n"
+        "任选其一：\n"
+        "  1) 设环境变量 BLOGSITE_PY 指向有 pyyaml 的解释器\n"
+        "  2) pip install pyyaml"
+    )
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -346,8 +410,12 @@ def git_sync(cfg: dict) -> dict:
 
 # ---------------------------------------------------------------- 飞书
 
-def stage_pages(pages: dict[str, Path], manifest: dict) -> Path:
-    """把要镜像的文件挑进 .state/feishu_stage，保留 mtime 让 smart 去重起作用。
+def stage_pages(pages: dict[str, Path]) -> Path:
+    """把要上传的文件挑进 .state/feishu_stage，保留 mtime 让 smart 去重起作用。
+
+    只挑文章单页——云空间现在不是给用户看的备份，而是**知识库节点的内容载体**
+    （wiki 原生节点不支持 file 类型，只能用 shortcut 指向云空间里的一份文件）。
+    首页和栏目页只发 GitHub，不需要在这里多占一份。
 
     不直接 --local-dir . 的原因：那会把 .git / collections / .state 一起推上去。
     """
@@ -359,20 +427,10 @@ def stage_pages(pages: dict[str, Path], manifest: dict) -> Path:
 
     for name, path in pages.items():
         shutil.copy2(path, STAGE / name)
-
-    index = ROOT / INDEX_NAME
-    if index.exists():
-        shutil.copy2(index, STAGE / INDEX_NAME)
-
-    for slug in (manifest.get("collections") or {}):
-        src = ROOT / slug / INDEX_NAME
-        if src.exists():
-            (STAGE / slug).mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, STAGE / slug / INDEX_NAME)
     return STAGE
 
 
-def feishu_push(cfg: dict, manifest: dict, pages: dict[str, Path]) -> dict:
+def feishu_push(cfg: dict, pages: dict[str, Path]) -> dict:
     token = cfg.get("feishu_folder_token") or ""
     if not token:
         return {"ok": False, "detail": "config.json 里没填 feishu_folder_token"}
@@ -380,7 +438,7 @@ def feishu_push(cfg: dict, manifest: dict, pages: dict[str, Path]) -> dict:
     if not exe:
         return {"ok": False, "detail": "找不到 lark-cli"}
 
-    stage = stage_pages(pages, manifest)
+    stage = stage_pages(pages)
     proc = run([exe, "drive", "+push",
                 "--local-dir", str(stage),
                 "--folder-token", token,
@@ -554,41 +612,99 @@ def feishu_wiki_sync(cfg: dict, pages: dict[str, Path], manifest: dict,
 
 # ---------------------------------------------------------------- 对账
 
+STATE_WRITES = True   # --no-state 时关掉，纯本地构建不该留下任何痕迹
+
+
 def load_state() -> dict:
+    state: dict = {}
     if STATE_FILE.exists():
         try:
-            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
         except Exception:
-            pass
-    return {"pages": {}}
+            state = {}
+    # 旧版把「已同步」压成一张 pages 表，一个戳同时代表 GitHub / 云空间 / 知识库。
+    # 结果就是关掉任一通道也会被标成已同步（--no-git 甚至直接判成功）。
+    # 迁到新模型：sha 挪进 seen（只是内容快照），其余不能信，直接丢。
+    legacy = state.pop("pages", None)
+    state.setdefault("seen", {})        # 只用来区分「新文章」和「老文章改了」，不代表已同步
+    state.setdefault("feishu_sha", {})  # 云空间是唯一无法远程验内容 hash 的通道，只能记戳
+    state.setdefault("wiki_nodes", {})
+    if legacy:
+        for name, rec in legacy.items():
+            if not isinstance(rec, dict) or not rec.get("sha"):
+                continue
+            state["seen"].setdefault(name, {
+                "sha": rec["sha"],
+                "title": rec.get("title") or "",
+                "seen_at": rec.get("synced_at") or "",
+            })
+    return state
 
 
 def save_state(state: dict) -> None:
+    if not STATE_WRITES:
+        return
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def diff_state(pages: dict[str, Path], state: dict) -> tuple[list[str], list[str]]:
+def content_delta(pages: dict[str, Path], state: dict) -> tuple[list[str], list[str]]:
+    """新文章 / 老文章改过。纯内容层面的判断，跟有没有推上去无关。"""
     new, changed = [], []
-    seen = state.get("pages") or {}
+    seen = state.get("seen") or {}
     for name, path in pages.items():
-        sha = sha_of(path)
         old = seen.get(name)
         if not old:
             new.append(name)
-        elif old.get("sha") != sha:
+        elif old.get("sha") != sha_of(path):
             changed.append(name)
     return new, changed
 
 
+def github_status(pages: dict[str, Path], cfg: dict) -> dict[str, bool]:
+    """GitHub 上是否已经是这份内容。直接问 git，不存状态。
+
+    `git diff --quiet origin/<branch> -- <file>`：为 0 表示工作区与远端一致。
+    文件没被跟踪、或远端还没有它，都会返回非 0，正好就是「没同步」。
+    """
+    ref = f"origin/{cfg['git_branch']}"
+    out = {}
+    for name in pages:
+        proc = run(["git", "diff", "--quiet", ref, "--", name])
+        out[name] = proc.returncode == 0
+    return out
+
+
+def feishu_status(pages: dict[str, Path], remote: dict[str, dict], state: dict) -> dict[str, bool]:
+    """云空间里文件在、且内容就是本地这一版。
+
+    远端拿不到内容 hash，只能靠上次上传成功时记下的 sha。文件不在了也算没同步。
+    """
+    shas = state.get("feishu_sha") or {}
+    return {name: bool(remote.get(name)) and shas.get(name) == sha_of(path)
+            for name, path in pages.items()}
+
+
+def wiki_status(pages: dict[str, Path], state: dict) -> dict[str, bool]:
+    """知识库里有没有指向这个文件的节点。来自实时 node-list，不是本地状态。"""
+    nodes = state.get("wiki_nodes") or {}
+    return {name: bool((nodes.get(name) or {}).get("node_token")) for name in pages}
+
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description="blogsite 三边同步")
+    global STATE_WRITES
+    ap = argparse.ArgumentParser(description="blogsite 同步：GitHub + 飞书知识库")
     ap.add_argument("--check", action="store_true", help="只对账，不写入不推送")
-    ap.add_argument("--no-feishu", action="store_true", help="跳过飞书镜像")
+    ap.add_argument("--no-feishu", action="store_true", help="跳过云空间上传与知识库节点")
     ap.add_argument("--no-git", action="store_true", help="跳过 git 提交与推送")
-    ap.add_argument("--no-wiki", action="store_true", help="跳过飞书知识库节点同步")
+    ap.add_argument("--no-wiki", action="store_true", help="只传云空间，不挂知识库节点")
+    ap.add_argument("--no-state", action="store_true",
+                    help="任何情况下都不写 .state（只构建本地文件时用）")
     ap.add_argument("--build-collections", action="store_true", help="按 manifest 生成栏目页")
     args = ap.parse_args()
+
+    if args.no_state or args.check:
+        STATE_WRITES = False
 
     cfg = load_config()
     base = cfg["base_url"].rstrip("/")
@@ -628,8 +744,8 @@ def main() -> int:
     if not args.check:
         (ROOT / INDEX_NAME).write_text(build_index(manifest), encoding="utf-8")
 
-    # 变化检测必须在推送前算，推完基线就变了
-    new, changed = diff_state(pages, state)
+    # 内容层面的变化：只用来区分「新文章」和「老文章改了」，不代表已同步
+    new, changed = content_delta(pages, state)
 
     git_info = {"committed": False, "pushed": False, "detail": "跳过"}
     if not args.check and not args.no_git:
@@ -637,22 +753,33 @@ def main() -> int:
 
     feishu_info = {"ok": True, "detail": "跳过"}
     if not args.check and not args.no_feishu:
-        feishu_info = feishu_push(cfg, manifest, pages)
+        feishu_info = feishu_push(cfg, pages)
 
     listing = feishu_listing(cfg)
-    remote = {k: v.get("url") or "" for k, v in listing.items()}
 
     wiki_info = {"ok": True, "detail": "跳过"}
     if not args.check and not args.no_feishu and not args.no_wiki:
         wiki_info = feishu_wiki_sync(cfg, pages, manifest, listing, state)
 
+    # ---- 各通道真值，全部在推送之后算，日报反映的是「现在到底同步没」
+    gh = github_status(pages, cfg)
+    fs = feishu_status(pages, listing, state)
+    wk = wiki_status(pages, state)
+    wk_shown = not args.no_feishu and not args.no_wiki
+
     local_names = set(pages.keys())
-    missing_remote = sorted(local_names - set(remote.keys()))
-    extra_remote = sorted({n for n in remote if "/" not in n} - local_names - {INDEX_NAME})
+    extra_remote = sorted({n for n in listing if "/" not in n} - local_names - {INDEX_NAME})
+
+    def ok(flag: bool | None) -> str:
+        return "跳过" if flag is None else ("✓" if flag else "✗")
+
+    def page_ok(name: str) -> bool:
+        return gh.get(name, False) and fs.get(name, False) and (wk.get(name, False) if wk_shown else True)
+
+    misaligned = [n for n in sorted(local_names) if not page_ok(n)]
 
     print("-" * 64)
-    print(f"新增 {len(new)} / 修改 {len(changed)} / "
-          f"飞书缺 {len(missing_remote)} / 飞书多 {len(extra_remote)}")
+    print(f"新增 {len(new)} / 修改 {len(changed)} / 未对齐 {len(misaligned)}")
     print("-" * 64)
 
     def show(name: str, tag: str) -> None:
@@ -663,10 +790,13 @@ def main() -> int:
         print(f"  本地   {path}")
         print(f"  站点   {base}/{rel}")
         print(f"  仓库   {repo}/blob/{branch}/{rel}")
-        print(f"  飞书   {remote.get(name) or '（未在远端找到）'}")
         node = (state.get("wiki_nodes") or {}).get(name) or {}
         if node.get("url"):
             print(f"  知识库 {node['url']}")
+        line = f"  状态   GitHub {ok(gh.get(name))}   云空间 {ok(fs.get(name))}"
+        if wk_shown:
+            line += f"   知识库 {ok(wk.get(name))}"
+        print(line)
 
     for n in new:
         show(n, "新增")
@@ -676,12 +806,12 @@ def main() -> int:
         for n in sorted(local_names):
             show(n, "未变")
 
-    if missing_remote:
-        print("\n飞书缺（本地有、远端没有）：")
-        for n in missing_remote:
+    if misaligned:
+        print("\n未对齐（至少一个通道没跟上）：")
+        for n in misaligned:
             print(f"  - {n}")
     if extra_remote:
-        print("\n飞书多（远端有、本地没有；脚本不删远端）：")
+        print("\n云空间多（远端有、本地已删；脚本不删远端，不影响知识库）：")
         for n in extra_remote:
             print(f"  - {n}")
 
@@ -690,10 +820,10 @@ def main() -> int:
     print(f"GitHub {git_info['detail']}")
     if feishu_info.get("ok"):
         s = feishu_info.get("summary") or {}
-        print(f"飞书   上传 {s.get('uploaded', 0)} / 跳过 {s.get('skipped', 0)}"
+        print(f"云空间 上传 {s.get('uploaded', 0)} / 跳过 {s.get('skipped', 0)}"
               f" / 失败 {s.get('failed', 0)}")
     else:
-        print(f"飞书   失败 —— {feishu_info.get('detail')}")
+        print(f"云空间 失败 —— {feishu_info.get('detail')}")
 
     if wiki_info.get("disabled") or wiki_info.get("detail") == "跳过":
         pass
@@ -705,21 +835,35 @@ def main() -> int:
         for f in wiki_info.get("failed") or []:
             print(f"        ! {f}")
 
-    git_ok = bool(git_info.get("pushed") or git_info.get("noop") or args.no_git)
-    if not args.check and git_ok:
+    if not args.check:
+        # seen 只是内容版本快照，跟有没有推上去无关——推失败也不该让下次又报「新增」
         for name, path in pages.items():
-            state.setdefault("pages", {})[name] = {
+            state.setdefault("seen", {})[name] = {
                 "sha": sha_of(path),
                 "title": title_of(path),
-                "synced_at": datetime.now().isoformat(timespec="seconds"),
+                "seen_at": datetime.now().isoformat(timespec="seconds"),
             }
+        # feishu_sha 只在「上传确实没失败」且「文件确实在远端」时才记。
+        # 这一条是旧版最大的坑：以前 --no-feishu 也会把文件标成已同步。
+        fs_failed = (feishu_info.get("summary") or {}).get("failed", 0)
+        if not args.no_feishu and feishu_info.get("ok") and not fs_failed:
+            for name, path in pages.items():
+                if name in listing:
+                    state.setdefault("feishu_sha", {})[name] = sha_of(path)
+        # 本地已删的文件，三张表里的残渣一起清掉
+        for key in ("seen", "feishu_sha", "wiki_nodes"):
+            table = state.setdefault(key, {})
+            for name in [n for n in table if n not in local_names]:
+                table.pop(name, None)
         save_state(state)
-        print("基线已更新。")
-    elif not args.check:
-        print("GitHub 未推送成功，基线保持不动——下次会重新报这批文件。")
+        print("状态已更新。" if STATE_WRITES else "（--no-state：未写状态）")
 
-    ok = args.check or git_ok
-    return 0 if ok and feishu_info.get("ok") else 1
+    if args.check:
+        return 0
+    if not feishu_info.get("ok"):
+        return 1
+    attempted_all = not (args.no_git or args.no_feishu or args.no_wiki)
+    return 1 if attempted_all and misaligned else 0
 
 
 if __name__ == "__main__":

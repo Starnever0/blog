@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>克制 —— 一份主动式助手的设计草案</title>
+<style>
+:root{
+  --paper:#FAF8F4;
+  --card:#FFFFFF;
+  --ink:#1C1B19;
+  --ink-2:#4A4741;
+  --ink-3:#847D72;
+  --rule:#E3DED3;
+  --rule-2:#EFEBE3;
+  --accent:#A63A2A;
+  --accent-soft:#F5E9E5;
+  --green:#2F5D50;
+  --green-soft:#E8F0EC;
+  --warn:#8A6420;
+  --warn-soft:#FAF2E2;
+  --mute-bg:#F3F0E9;
+  --serif:"Songti SC","Source Han Serif SC","Noto Serif SC","STSong",SimSun,Georgia,serif;
+  --sans:"PingFang SC","Microsoft YaHei","Hiragino Sans GB","Helvetica Neue",Arial,sans-serif;
+  --mono:"SF Mono","JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.78;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(166,58,42,.25);}
+a:hover{border-bottom-color:var(--accent);}
+.wrap{max-width:1180px;margin:0 auto;padding:0 32px;display:flex;gap:64px;align-items:flex-start;}
+
+/* ---------- TOC ---------- */
+nav.toc{
+  position:sticky;top:0;flex:0 0 208px;padding:56px 0 48px;
+  max-height:100vh;overflow-y:auto;font-size:12.5px;line-height:1.66;
+}
+nav.toc .toc-h{
+  font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-3);margin-bottom:16px;
+}
+nav.toc ol{list-style:none;margin:0;padding:0;}
+nav.toc li{margin-bottom:9px;}
+nav.toc a{
+  color:var(--ink-2);border-bottom:none;display:flex;gap:8px;align-items:baseline;
+}
+nav.toc a:hover{color:var(--accent);}
+nav.toc .num{font-family:var(--mono);font-size:10px;color:var(--ink-3);flex:0 0 18px;}
+
+main{flex:1 1 auto;min-width:0;max-width:760px;padding:56px 0 120px;}
+
+/* ---------- hero ---------- */
+.hero{padding-bottom:44px;border-bottom:1px solid var(--ink);margin-bottom:48px;}
+.draft-tag{
+  display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;
+  color:var(--accent);background:var(--accent-soft);
+  padding:4px 10px;border-radius:2px;margin-bottom:26px;
+}
+h1{
+  font-family:var(--serif);font-weight:600;font-size:clamp(38px,6vw,60px);
+  line-height:1.14;letter-spacing:-.01em;margin:0 0 20px;
+}
+h1 .thin{display:block;font-size:.46em;color:var(--ink-3);font-weight:400;line-height:1.5;margin-top:.22em;letter-spacing:0;}
+.hero .sub{
+  font-family:var(--serif);font-size:19px;line-height:1.7;color:var(--ink-2);
+  margin:0 0 30px;max-width:620px;
+}
+.hero .sub em{font-style:normal;color:var(--accent);border-bottom:2px solid var(--accent-soft);}
+.meta{
+  display:flex;flex-wrap:wrap;gap:8px 28px;
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.04em;
+}
+.meta b{color:var(--ink-2);font-weight:500;}
+
+/* ---------- notice ---------- */
+.notice{
+  background:var(--warn-soft);border-left:3px solid #C79A46;
+  padding:18px 22px;margin:0 0 56px;font-size:14px;line-height:1.75;color:#5C4A24;
+  border-radius:0 3px 3px 0;
+}
+.notice strong{color:#3F3218;}
+.notice p{margin:0 0 8px;}
+.notice p:last-child{margin:0;}
+
+/* ---------- sections ---------- */
+section{margin-bottom:76px;scroll-margin-top:24px;}
+.sec-label{
+  display:flex;align-items:baseline;gap:12px;margin-bottom:14px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;color:var(--accent);
+  text-transform:uppercase;
+}
+.sec-label::after{content:"";flex:1;height:1px;background:var(--rule);}
+h2{
+  font-family:var(--serif);font-weight:600;font-size:29px;line-height:1.35;
+  margin:0 0 22px;letter-spacing:-.005em;
+}
+h3{
+  font-family:var(--sans);font-weight:600;font-size:16.5px;line-height:1.5;
+  margin:38px 0 12px;color:var(--ink);
+}
+h3:first-of-type{margin-top:24px;}
+p{margin:0 0 16px;}
+strong{font-weight:600;}
+.k{color:var(--accent);font-weight:600;}
+.mono{font-family:var(--mono);font-size:.9em;background:var(--mute-bg);padding:1px 5px;border-radius:2px;}
+.lead{font-size:17px;color:var(--ink-2);line-height:1.82;}
+
+blockquote{
+  margin:26px 0;padding:0 0 0 22px;border-left:2px solid var(--ink);
+  font-family:var(--serif);font-size:20px;line-height:1.66;color:var(--ink);
+}
+blockquote cite{display:block;font-family:var(--sans);font-style:normal;font-size:12.5px;color:var(--ink-3);margin-top:10px;}
+
+ul,ol{margin:0 0 18px;padding-left:22px;}
+li{margin-bottom:9px;}
+li::marker{color:var(--ink-3);}
+
+/* ---------- tables ---------- */
+.tbl-wrap{overflow-x:auto;margin:24px 0 28px;}
+.tbl-wrap.scene table{table-layout:fixed;font-size:12.5px;}
+.tbl-wrap.scene th,.tbl-wrap.scene td{padding-right:10px;}
+.tbl-wrap.scene th{white-space:normal;line-height:1.4;}
+table{width:100%;border-collapse:collapse;font-size:13.5px;line-height:1.6;}
+th{
+  text-align:left;font-weight:600;color:var(--ink);font-size:12px;
+  letter-spacing:.04em;padding:9px 12px 9px 0;border-bottom:1px solid var(--ink);
+  white-space:nowrap;
+}
+td{padding:10px 12px 10px 0;border-bottom:1px solid var(--rule-2);color:var(--ink-2);vertical-align:top;}
+td:last-child,th:last-child{padding-right:0;}
+tr:last-child td{border-bottom:1px solid var(--rule);}
+td.num{font-family:var(--mono);font-size:12.5px;white-space:nowrap;color:var(--ink);}
+tr.total td{border-top:1px solid var(--ink);border-bottom:none;font-weight:600;color:var(--ink);}
+.tag{
+  display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+  padding:2px 7px;border-radius:2px;white-space:nowrap;
+}
+.tag.main{background:var(--accent-soft);color:var(--accent);}
+.tag.side{background:var(--mute-bg);color:var(--ink-3);}
+.tag.dead{background:#F0EEEA;color:#9A938A;text-decoration:line-through;}
+.tag.ok{background:var(--green-soft);color:var(--green);}
+.dots{font-family:var(--mono);letter-spacing:1px;color:var(--ink);}
+
+/* ---------- funnel ---------- */
+.funnel{margin:32px 0 12px;}
+.fstep{
+  position:relative;margin:0 auto 10px;padding:16px 20px;border-radius:3px;
+  background:var(--card);border:1px solid var(--rule);
+  display:flex;align-items:center;gap:16px;
+}
+.fstep .fl{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+  flex:0 0 30px;color:var(--accent);
+}
+.fstep .ft{flex:1;font-size:14px;}
+.fstep .ft > b{display:block;font-size:14.5px;margin-bottom:2px;}
+.fstep .ft span{color:var(--ink-3);font-size:12.5px;line-height:1.5;display:block;}
+.fstep .fm{
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);text-align:right;
+  flex:0 0 96px;line-height:1.45;
+}
+.fs0{width:100%;background:#FCFBF9;}
+.fs1{width:88%;background:#FBF9F5;}
+.fs2{width:72%;background:var(--card);}
+.fs3{width:56%;background:#FFFFFF;border-color:var(--ink);}
+.fnote{
+  font-size:12.5px;color:var(--ink-3);line-height:1.7;margin:14px auto 0;max-width:640px;
+  text-align:center;
+}
+
+/* ---------- code ---------- */
+pre{
+  background:#22201D;color:#E8E4DC;padding:20px 22px;overflow-x:auto;
+  font-family:var(--mono);font-size:12.5px;line-height:1.72;border-radius:3px;
+  margin:20px 0 26px;
+}
+pre .c{color:#8A8172;}
+pre .s{color:#D9A86C;}
+pre .kk{color:#C97C63;}
+pre .n{color:#9EC3A8;}
+code{font-family:var(--mono);font-size:.88em;}
+
+/* ---------- timeline demo ---------- */
+.demo{
+  border:1px solid var(--rule);border-radius:4px;background:var(--card);
+  margin:28px 0 10px;overflow:hidden;
+}
+.demo-head{
+  display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+  padding:14px 20px;background:var(--mute-bg);border-bottom:1px solid var(--rule);
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.05em;
+}
+.demo-head .counter{color:var(--accent);font-weight:600;}
+.line{
+  display:grid;grid-template-columns:52px 1fr 190px;gap:14px;
+  padding:11px 20px 11px 17px;border-bottom:1px solid var(--rule-2);border-left:3px solid transparent;
+  font-size:13.5px;line-height:1.62;
+}
+.line:last-child{border-bottom:none;}
+.line .t{font-family:var(--mono);font-size:11px;color:var(--ink-3);padding-top:2px;}
+.line .who{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;margin-right:7px;}
+.line .who.o{color:var(--accent);}
+.line .who.u{color:var(--ink-3);}
+.line .say{color:var(--ink-2);}
+.line .ev{
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-3);line-height:1.5;
+  text-align:right;padding-top:2px;
+}
+.line.silent{background:#FDFCFA;}
+.line.alert{
+  background:var(--accent-soft);border-left-color:var(--accent);
+}
+.line.alert .say{color:var(--accent);font-weight:600;}
+.line.alert .ev{color:var(--accent);font-weight:600;}
+.block-sum{
+  padding:13px 20px;background:#FCFBF8;border-bottom:1px solid var(--rule-2);
+  font-size:12.5px;color:var(--ink-3);font-family:var(--mono);letter-spacing:.03em;
+  display:flex;justify-content:space-between;gap:16px;
+}
+details{
+  border:1px solid var(--rule);border-radius:3px;margin:18px 0;background:var(--card);
+}
+details[open]{background:#FDFCFA;}
+summary{
+  cursor:pointer;padding:12px 18px;font-size:13px;color:var(--ink-2);
+  font-weight:500;list-style:none;
+}
+summary::-webkit-details-marker{display:none;}
+summary::before{content:"▸ ";color:var(--accent);font-size:11px;}
+details[open] summary::before{content:"▾ ";}
+details .dbody{padding:0 18px 16px;font-size:13.5px;color:var(--ink-2);}
+details .dbody p{margin:0 0 10px;}
+details .dbody p:last-child{margin:0;}
+
+/* ---------- bars ---------- */
+.bars{margin:24px 0 8px;}
+.bar-row{
+  display:grid;grid-template-columns:150px 1fr 66px;gap:14px;align-items:center;
+  margin-bottom:9px;font-size:13px;
+}
+.bar-row .bl{color:var(--ink-2);}
+.bar-track{height:16px;background:var(--mute-bg);border-radius:1px;overflow:hidden;}
+.bar-fill{height:100%;background:var(--accent);opacity:.85;}
+.bar-fill.dim{background:#B9AFA0;}
+.bar-row .bv{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);text-align:right;}
+
+/* ---------- limits ---------- */
+.limits{border-top:1px solid var(--ink);margin-top:30px;}
+.limit{
+  display:grid;grid-template-columns:34px 1fr;gap:18px;
+  padding:20px 0;border-bottom:1px solid var(--rule-2);
+}
+.limit .ln{font-family:var(--mono);font-size:11px;color:var(--accent);padding-top:3px;}
+.limit h4{
+  margin:0 0 7px;font-size:15px;font-weight:600;font-family:var(--sans);
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.limit p{margin:0 0 8px;font-size:14px;color:var(--ink-2);line-height:1.72;}
+.limit p:last-child{margin:0;}
+.limit .hard{font-size:11px;font-family:var(--mono);letter-spacing:.06em;padding:2px 7px;border-radius:2px;}
+.hard.no{background:#F0EEEA;color:#8A8279;}
+.hard.yes{background:var(--accent-soft);color:var(--accent);}
+
+/* ---------- cards ---------- */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0 20px;}
+.card{
+  background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:18px 20px;
+}
+.card h4{margin:0 0 8px;font-size:14.5px;font-weight:600;font-family:var(--sans);}
+.card p{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.68;}
+.card.ac{border-left:3px solid var(--accent);}
+.card.gn{border-left:3px solid var(--green);}
+
+/* ---------- open questions ---------- */
+.q-list{list-style:none;padding:0;margin:22px 0;counter-reset:q;}
+.q-list li{
+  counter-increment:q;position:relative;padding:14px 0 14px 44px;
+  border-bottom:1px solid var(--rule-2);font-size:14px;color:var(--ink-2);
+}
+.q-list li::before{
+  content:"Q" counter(q);position:absolute;left:0;top:14px;
+  font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.06em;
+}
+.q-list li b{display:block;color:var(--ink);font-size:14.5px;margin-bottom:3px;font-weight:600;}
+
+/* ---------- footer ---------- */
+footer{
+  margin-top:80px;padding-top:26px;border-top:1px solid var(--ink);
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);line-height:2;
+}
+footer .sig{color:var(--ink-2);}
+
+@media (max-width:980px){
+  .wrap{display:block;padding:0 22px;}
+  nav.toc{display:none;}
+  main{max-width:100%;padding-top:40px;}
+}
+@media (max-width:620px){
+  body{font-size:15.5px;}
+  h1{font-size:36px;}
+  .line{grid-template-columns:1fr;gap:4px;padding:12px 16px;}
+  .line .ev{text-align:left;padding-top:4px;}
+  .bar-row{grid-template-columns:110px 1fr 56px;}
+  .grid2{grid-template-columns:1fr;}
+  .fstep{flex-wrap:wrap;}
+  .fstep .fm{flex-basis:100%;text-align:left;}
+  .fs1,.fs2,.fs3{width:100%;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="toc">
+  <div class="toc-h">Contents</div>
+  <ol>
+    <li><a href="#s1"><span class="num">01</span><span>命题</span></a></li>
+    <li><a href="#s2"><span class="num">02</span><span>什么算"该提醒"</span></a></li>
+    <li><a href="#s3"><span class="num">03</span><span>机制：四级漏斗</span></a></li>
+    <li><a href="#s4"><span class="num">04</span><span>走一遍</span></a></li>
+    <li><a href="#s5"><span class="num">05</span><span>三笔账</span></a></li>
+    <li><a href="#s6"><span class="num">06</span><span>局限与约束</span></a></li>
+    <li><a href="#s7"><span class="num">07</span><span>明确不做</span></a></li>
+    <li><a href="#s8"><span class="num">08</span><span>场景矩阵</span></a></li>
+    <li><a href="#s9"><span class="num">09</span><span>演进路径</span></a></li>
+    <li><a href="#s10"><span class="num">10</span><span>开源形态</span></a></li>
+    <li><a href="#s11"><span class="num">11</span><span>未决问题</span></a></li>
+    <li><a href="#s12"><span class="num">12</span><span>对标</span></a></li>
+  </ol>
+</nav>
+
+<main>
+
+<header class="hero">
+  <div class="draft-tag">设计草案 · 非产品宣传 · v0.1</div>
+  <h1>克制<br><span class="thin">——一份主动式助手的设计草案</span></h1>
+  <p class="sub">AI 缺的不是智能，是<em>克制</em>。这份文档讨论的不是"如何让助手更主动"，而是"如何让它在绝大多数时候保持沉默，只在极少数时刻开口"。</p>
+  <div class="meta">
+    <span><b>性质</b> 方向草案，非产品规划</span>
+    <span><b>形态</b> 开源设计 + 最小实现</span>
+    <span><b>日期</b> 2026-11-02</span>
+  </div>
+</header>
+
+<div class="notice">
+  <p><strong>阅读前须知（这是本文最重要的部分之一）。</strong></p>
+  <p>文中所有延迟、功耗、成本数字，均来自公开资料或按典型场景推算，<strong>无一项经本项目实测</strong>。本文不主张这些数字准确，只主张它们量级可信、足以支撑架构取舍。</p>
+  <p>本文也不主张这个设计是对的。第 06 节完整列出我们已知的、尚未解决的局限；第 07 节列出明确不做的范围；第 11 节列出仍然悬空的决策。如果一份设计草案只写"我们能做什么"，它就不是草案，是宣传。</p>
+</div>
+
+<!-- ============ 01 ============ -->
+<section id="s1">
+  <div class="sec-label">01 / 命题</div>
+  <h2>现在的 agent 都是"被叫醒的"，这既是它的优点，也是它的天花板</h2>
+
+  <p class="lead">从 ChatGPT 到各类 coding agent，主流交互范式是同一个：用户形成意图 → 构造请求 → 系统响应。这个范式极其成功，但它有一个结构性前提——<strong>用户必须先知道自己需要什么</strong>。</p>
+
+  <p>而现实里大量损失发生在相反的情形中：当事人根本没想到要问。老人不知道这通电话是诈骗，购物的人不知道账算错了，谈判的人不知道对方报的价是市场价的三倍。<strong>在这些时刻，"没有意图"本身就是问题所在。</strong></p>
+
+  <p>于是有了"主动式 agent"这个方向：让它一直在场，自己判断何时介入。听起来是自然演进，但历史上这条路死过很多次：</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>尝试</th><th>形态</th><th>失败原因（我们的判断）</th></tr></thead>
+    <tbody>
+      <tr><td>Microsoft Clippy</td><td>桌面助手，基于规则触发提示</td><td>触发条件与"用户需要"无关，只与"系统检测到模式"有关</td></tr>
+      <tr><td>Google Now</td><td>基于位置/日程主动推卡片</td><td>信息相关，但不改变决策，最终沦为噪音源</td></tr>
+      <tr><td>各类"智能推荐"</td><td>行为预测后主动推送</td><td>优化目标是点击率，不是用户的决策质量</td></tr>
+      <tr><td>Always-on 录音硬件</td><td>Plaud NotePin / Limitless Pendant</td><td>解决了"记录"，<strong>没有解决"何时开口"</strong>——所以它们本质是录音机</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>这些失败有一个共同点：<strong>它们不是在"能力"上失败，是在"判定标准"上失败。</strong>系统能检测到很多东西，但没有一个标准能回答"此刻是否值得打断这个人"。</p>
+
+  <blockquote>
+    主动式 agent 的核心难题从来不是"能不能感知"，而是"凭什么开口"。<br>前者的成本每年下降一个数量级，后者十年没有进展。
+  </blockquote>
+
+  <p>所以本文提出的命题是：<strong>主动式助手的竞争力不在能力侧，在克制侧。</strong>一个能准确判断"现在不该说话"的系统，比一个能回答一切问题的系统更难做，也更有价值。</p>
+</section>
+
+<!-- ============ 02 ============ -->
+<section id="s2">
+  <div class="sec-label">02 / 判据</div>
+  <h2>什么算"该提醒"：从相关性判断换成后果判断</h2>
+
+  <p>最直觉的判据是："如果我知道用户不知道的信息，就告诉他。"这个判据一用就崩——因为几乎每一句话背后都存在用户不知道的信息，<strong>"该提醒"的集合是无限的</strong>，系统会在每一秒都想开口。</p>
+
+  <p>更精确的判据来自一个观察：用户自己上网搜索完全能获得同样的信息，他不搜，不是因为搜不到，<strong>是因为没想到要搜</strong>。所以真正的稀缺不是信息，是"意识到此刻需要一个判断"。</p>
+
+  <h3>判据：这条信息会不会让他改主意</h3>
+
+  <p>把"用户是否需要额外信息"换成"<span class="k">这条信息是否会改变他的选择</span>"，性质就变了：前者是相关性判断（永远为真，无边界的）；后者是<strong>后果判断</strong>（有限、可枚举、可测量）。</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>对话片段</th><th>是否相关</th><th>是否改变决策</th><th>该不该开口</th></tr></thead>
+    <tbody>
+      <tr><td>"今天去野营还是踏青啊"</td><td>是（可推荐）</td><td>否</td><td>不该</td></tr>
+      <tr><td>"明天应该挺凉快吧"（实际 25℃，舒适）</td><td>是</td><td>否</td><td>不该</td></tr>
+      <tr><td>"不知道明天会不会下雨"（实际 78% 降雨）</td><td>是</td><td><strong>是</strong></td><td><strong>该</strong></td></tr>
+      <tr><td>"那就这么定了，明天野营"（未察觉降雨）</td><td>是</td><td><strong>是</strong></td><td><strong>该（隐式缺口）</strong></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>注意表格后两行：第三行用户<strong>自己说出了信息缺口</strong>（"不知道会不会下雨"），这属于<strong>显式缺口</strong>，判定极容易；第四行用户已经拍板，缺口是<strong>隐式的</strong>，需要系统自己意识到"这个决定依赖一个他并不掌握的信息"。</p>
+
+  <p><strong>这两行的难度差一个量级，而产品价值几乎全部在后者。</strong>显式缺口只是"更快地搜索"，隐式缺口才是"他想不到要问"。本草案的立场是：v1 只做显式缺口 + 高确定性阻断，隐式缺口是长期目标，不是当前承诺。</p>
+
+  <h3>由此派生一个指标：决策翻转率</h3>
+
+  <p>如果判据是"会不会改主意"，那么系统的质量就可以直接度量——<strong>在所有触发的提醒中，有多少真的改变了用户的行为</strong>。这个指标比"准确率"诚实得多，也更难伪造：</p>
+
+  <div class="card ac" style="margin-top:20px;">
+    <h4>示例口径</h4>
+    <p>某次评估共触发 12 次提醒：其中 9 次用户在提醒后改变了原定动作（未转账 / 改期 / 复核账单），2 次用户表示"我知道，但没关系"，1 次被判定为噪音（提醒内容与场景无关）。<br><br>→ 决策翻转率 9/12 = 75%，噪音率 1/12 = 8.3%。</p>
+  </div>
+
+  <p style="margin-top:18px;">这个指标有一个副作用值得提前说明：<strong>"改变了行为"并不总是好事</strong>。如果用户本来是对的，AI 把他劝错了，也算一次"翻转"。所以它必须和人工复核配对使用，不能单独作为优化目标。这一点在第 06 节会再提到。</p>
+</section>
+
+<!-- ============ 03 ============ -->
+<section id="s3">
+  <div class="sec-label">03 / 机制</div>
+  <h2>四级漏斗：让模型做判断，但别让模型做路由</h2>
+
+  <p>最初的想法是"用一个轻量模型随时判断是否需要帮忙"，大多数时候它判定"不需要"，于是不执行任何动作来省算力。方向是对的，但有一个隐藏成本：<strong>判断本身就要花算力</strong>。省掉的是执行，不是判断。让一个 1B 模型常开跑二分类，功耗和误报都会失控。</p>
+
+  <p>正确的形状不是"一个模型做路由"，而是一条<strong>逐级变窄、逐级变贵</strong>的漏斗——越往下，被处理的样本越少：</p>
+
+  <div class="funnel">
+    <div class="fstep fs0">
+      <div class="fl">L0</div>
+      <div class="ft"><b>声学门控</b><span>VAD 能量检测 + 热词/关键词唤醒。不做语义判断，只回答"有没有人在说话、有没有出现候选词"。</span></div>
+      <div class="fm">~1 mW<br>常开</div>
+    </div>
+    <div class="fstep fs1">
+      <div class="fl">L1</div>
+      <div class="ft"><b>事件抽取（不是转写）</b><span>端侧流式 ASR + 结构化抽取。输出的是<b>事件</b>，不是文本：谁、说了什么类型的话、涉及多少金额、是否构成承诺或要求。</span></div>
+      <div class="fm">~50 mW<br>唤醒后</div>
+    </div>
+    <div class="fstep fs2">
+      <div class="fl">L2</div>
+      <div class="ft"><b>判定：是否改主意</b><span>唯一需要真正推理的一层。输入是事件而非全文，输出是 silent / alert + 置信度 + 理由。</span></div>
+      <div class="fm">按需调用<br>一天数十次</div>
+    </div>
+    <div class="fstep fs3">
+      <div class="fl">L3</div>
+      <div class="ft"><b>策略与话术</b><span>用什么通道（耳语/震动/卡片）、说多长、什么语气。纯规则，不花算力。</span></div>
+      <div class="fm">无模型</div>
+    </div>
+  </div>
+  <p class="fnote">关键设计：<strong>要不要听</strong>由 L0 的事件触发决定；<strong>值不值得说</strong>由 L2 决定。模型不负责"要不要看"，只负责"这个事件值不值得开口"。</p>
+
+  <h3>事件 schema：真正的复用点</h3>
+
+  <p>如果将来要扩展场景，"通用性"不会从场景堆叠里长出来——五个场景共享的只是 L0 和 ASR，L2 的判定、L3 的话术、数据源，每个场景都完全不同。所以复用的唯一机会在<strong>中间层的事件格式</strong>：把事件类型做成可扩展的插件，而不是硬编码。</p>
+
+<pre><span class="c">// L1 输出：事件，而非文本</span>
+{
+  <span class="s">"type"</span>: <span class="s">"authority_claim"</span>,   <span class="c">// 可枚举，可扩展</span>
+  <span class="s">"speaker"</span>: <span class="s">"other"</span>,          <span class="c">// 谁说的，判定命门</span>
+  <span class="s">"content"</span>: <span class="s">"要求转账至安全账户"</span>,
+  <span class="s">"entities"</span>: { <span class="s">"amount"</span>: <span class="n">123000</span>, <span class="s">"object"</span>: <span class="s">"bank_account"</span> },
+  <span class="s">"confidence"</span>: <span class="n">0.87</span>
+}
+
+<span class="c">// L2 输出：沉默是一等公民</span>
+{
+  <span class="s">"action"</span>: <span class="s">"silent"</span>,  <span class="c">// silent | alert —— 必须显式</span>
+  <span class="s">"reason"</span>: <span class="s">"出现资金动作，但用户尚未表示同意"</span>,
+  <span class="s">"flip_potential"</span>: <span class="n">0.4</span>     <span class="c">// 是否可能改主意的估计</span>
+}
+
+<span class="c">// L3 输出：一句，不长</span>
+{ <span class="s">"text"</span>: <span class="s">"别转。真警察不会让你转钱。"</span>, <span class="s">"channel"</span>: <span class="s">"whisper"</span> }</pre>
+
+  <p>注意第二段里的 <span class="mono">"action": "silent"</span>。<strong>沉默必须是一个正式的输出状态，并且带理由</strong>，不能实现成"没触发所以没有输出"——那样沉默就从日志里消失了，而沉默恰恰是这个系统最重要的行为。</p>
+</section>
+
+<!-- ============ 04 ============ -->
+<section id="s4">
+  <div class="sec-label">04 / 实例</div>
+  <h2>走一遍：15 句对话，1 次开口，14 次决定不说</h2>
+
+  <p>下面是一段模拟转写稿（虚构、非真人录音、带说话人标签与口语噪声）。它演示的不是"提醒得多准"，而是<strong>系统在大部分时间里都在忍耐</strong>。</p>
+
+  <div class="demo">
+    <div class="demo-head">
+      <span>SCENARIO · 冒充公检法 · 老人 · 手机通话</span>
+      <span>已监听 <span class="counter">04:12</span> · 触发 <span class="counter">1</span> 次 / 沉默 14 次</span>
+    </div>
+
+    <div class="line silent">
+      <div class="t">00:00</div>
+      <div><span class="who o">对方</span><span class="say">阿姨，我是市公安局刑侦支队的，我姓李。</span></div>
+      <div class="ev">silent · 身份声明<br>尚无资金动作</div>
+    </div>
+
+    <div class="line silent">
+      <div class="t">00:11</div>
+      <div><span class="who u">用户</span><span class="say">啊？什么事啊。</span></div>
+      <div class="ev">silent · 无事件</div>
+    </div>
+
+    <div class="line silent">
+      <div class="t">00:16</div>
+      <div><span class="who o">对方</span><span class="say">您名下有一张银行卡涉嫌一起洗钱案，我们现在在核查。</span></div>
+      <div class="ev">silent · 恐慌制造<br>置信 0.41，不构成可执行动作</div>
+    </div>
+
+    <div class="line silent">
+      <div class="t">00:28</div>
+      <div><span class="who u">用户</span><span class="say">我没有啊，我就一张工资卡。</span></div>
+      <div class="ev">silent · 辩解<br>信息不回灌给判定</div>
+    </div>
+
+    <div class="line silent">
+      <div class="t">00:35</div>
+      <div><span class="who o">对方</span><span class="say">那可能是身份信息被盗用了，您先别慌，这个案子我们正在办。</span></div>
+      <div class="ev">silent · 安抚话术<br>置信 0.52</div>
+    </div>
+
+    <div class="line silent">
+      <div class="t">00:47</div>
+      <div><span class="who o">对方</span><span class="say">这个事不能跟家里人说啊，说了会影响办案。</span></div>
+      <div class="ev">silent · 隔离话术<br>置信 0.71，仍无资金动作</div>
+    </div>
+
+    <div class="line silent">
+      <div class="t">01:02</div>
+      <div><span class="who u">用户</span><span class="say">哦哦，不说不说。</span></div>
+      <div class="ev">silent · 用户已顺从<br>风险上升，但无可执行建议</div>
+    </div>
+
+    <div class="line silent">
+      <div class="t">01:15</div>
+      <div><span class="who o">对方</span><span class="say">现在需要您把卡里的钱转到我们的安全账户做资金核查，查完原路退回。</span></div>
+      <div class="ev">silent · 首次出现资金动作<br><strong>临界：等待金额与紧迫性</strong></div>
+    </div>
+
+    <div class="line silent">
+      <div class="t">01:31</div>
+      <div><span class="who u">用户</span><span class="say">安全账户？多少钱啊。</span></div>
+      <div class="ev">silent · 用户开始询问金额<br>（此时最接近开口）</div>
+    </div>
+
+    <div class="line silent">
+      <div class="t">01:38</div>
+      <div><span class="who o">对方</span><span class="say">全部，十二万三。今天下午五点前必须完成，不然我们要发通缉令。</span></div>
+      <div class="ev">→ 三要素齐备<br>金额 + 时限 + 威胁</div>
+    </div>
+
+    <div class="line alert">
+      <div class="t">01:44</div>
+      <div><span class="who o">AGENT</span><span class="say">别转。真警察不会让你往"安全账户"转钱，也没有这个账户。挂掉，打 96110 核实。</span></div>
+      <div class="ev">ALERT · 置信 0.94<br>延迟 1.2s（端侧规则链）</div>
+    </div>
+
+    <div class="line">
+      <div class="t">01:52</div>
+      <div><span class="who u">用户</span><span class="say">我……我打个电话问问我儿子。</span></div>
+      <div class="ev">决策翻转 ✓</div>
+    </div>
+
+    <div class="line silent">
+      <div class="t">01:58</div>
+      <div><span class="who o">对方</span><span class="say">阿姨，这个真不能跟家里说。</span></div>
+      <div class="ev">silent · 重复话术<br>不再重复提醒</div>
+    </div>
+
+    <div class="line silent">
+      <div class="t">02:06</div>
+      <div><span class="who u">用户</span><span class="say">那我还是问问吧。</span></div>
+      <div class="ev">silent · 无需二次介入</div>
+    </div>
+
+    <div class="line silent">
+      <div class="t">02:12</div>
+      <div><span class="who o">对方</span><span class="say">阿姨？阿姨您还在吗。</span></div>
+      <div class="ev">silent · 通话结束</div>
+    </div>
+
+    <div class="block-sum">
+      <span>决策翻转率 1/1 · 噪音 0 · 平均开口前忍耐 9 轮</span>
+      <span>端侧判定 14 次 / 云端 0 次</span>
+    </div>
+  </div>
+
+  <p style="font-size:12.5px;color:var(--ink-3);margin-top:10px;">以上为手工构造的演示数据，非实测。真实系统在这一段里的判定错误率、延迟分布均未知。</p>
+
+  <details>
+    <summary>为什么在第 8 句（"转到安全账户"）不开口，非要等到第 10 句？</summary>
+    <div class="dbody">
+      <p>这是本设计里一个反复权衡过的取舍。第 8 句首次出现"转账"动作，风控意义上已经越线，但从"是否改主意"的角度看还差两样东西：<strong>金额未知、紧迫性未知</strong>。此时开口，很可能得到"哦，我问问多少钱再说"——提醒到达了，但没有改变任何决定。</p>
+      <p>第 10 句补齐了三个要素：具体金额（十二万三）、时限压力（下午五点）、威胁（通缉令）。这三个要素同时出现的时刻，正是用户即将从"听"转向"做"的时刻——也就是决策窗口的最后边缘。</p>
+      <p>代价是：如果用户在这之前就已经打开银行 App，我们就晚了。这类漏报在本设计中被接受，因为<strong>漏报的代价是一次没帮上，误报的代价是信任崩塌</strong>。这个不对称是整套架构的伦理前提，不是优化参数。</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>如果提醒发出去了，用户还是转了钱，算什么？</summary>
+    <div class="dbody">
+      <p>算一次"未翻转"，不算系统失败，也不该被消化成"准确率"问题。这类案例恰好说明：<strong>提醒到达 ≠ 决策改变</strong>。本设计在 fixture 里专门保留这类样本，并且明确区分两个指标——判定准确率（判定对不对）和决策翻转率（提醒有没有用）。</p>
+      <p>把这两个指标混在一起，是这类产品最容易自欺的地方。</p>
+    </div>
+  </details>
+</section>
+
+<!-- ============ 05 ============ -->
+<section id="s5">
+  <div class="sec-label">05 / 核算</div>
+  <h2>三笔账：延迟、功耗、成本</h2>
+
+  <p class="lead">这一节是为了回答"这可行吗"。结论是：<strong>端侧判定可行，开放式联网查证不可行</strong>。三笔账分别是延迟（体验）、功耗（形态）、成本（商业）。</p>
+
+  <h3>第一笔：延迟——卡点不在生成，在检索</h3>
+
+  <p>"既然用户自己搜索很快，为什么 agent 不行？"这是个好问题，答案是<strong>慢的地方和想象中不一样</strong>：</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>环节</th><th>典型耗时</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>判定"该不该查"</td><td class="num">300–800 ms</td><td>若用 LLM 就要付这一次</td></tr>
+      <tr><td><strong>构造 query（消歧）</strong></td><td class="num">300–1000 ms</td><td>被低估的大头：哪个城市、哪一天、"下雨"用什么阈值</td></tr>
+      <tr><td>网络往返</td><td class="num">50–800 ms</td><td>弱网更差</td></tr>
+      <tr><td>搜索 API</td><td class="num">300–800 ms</td><td></td></tr>
+      <tr><td><strong>抓正文 + 清洗</strong></td><td class="num">1000–3000 ms</td><td>真正的瓶颈</td></tr>
+      <tr><td>生成一两句</td><td class="num">300–500 ms</td><td>确实不慢</td></tr>
+      <tr class="total"><td>端到端</td><td class="num">3–6 s（最坏 10 s+）</td><td>生成只占约 1/10</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>更关键的不是毫秒，是"构造 query"这一步。<strong>用户搜索跳过了"理解意图"，agent 必须付这个成本</strong>；而这一步错一次，后面全废。</p>
+
+  <div class="bars">
+    <div class="bar-row"><div class="bl">构造 query</div><div class="bar-track"><div class="bar-fill" style="width:26%"></div></div><div class="bv">0.3–1.0s</div></div>
+    <div class="bar-row"><div class="bl">抓正文清洗</div><div class="bar-track"><div class="bar-fill" style="width:78%"></div></div><div class="bv">1.0–3.0s</div></div>
+    <div class="bar-row"><div class="bl">L2 判定</div><div class="bar-track"><div class="bar-fill dim" style="width:18%"></div></div><div class="bv">0.3–0.8s</div></div>
+    <div class="bar-row"><div class="bl">生成</div><div class="bar-track"><div class="bar-fill dim" style="width:10%"></div></div><div class="bv">0.3–0.5s</div></div>
+    <div class="bar-row"><div class="bl">端侧规则链</div><div class="bar-track"><div class="bar-fill" style="width:5%"></div></div><div class="bv">&lt;0.2s</div></div>
+  </div>
+
+  <p>所以产品形态上必须做一次切割：</p>
+
+  <div class="grid2">
+    <div class="card gn">
+      <h4>能做实时（&lt;1s）</h4>
+      <p>算术校验、单位换算、常识判断、可预取的结构化数据（天气/汇率/股价/号码黑名单）。前提是数据源可枚举、可提前拉取。</p>
+    </div>
+    <div class="card ac">
+      <h4>做不到实时（3–6s）</h4>
+      <p>开放式联网查证：需要读网页再总结的那一类。只能退化成"决策窗口内的补充"，接受延迟，落在用户拍板之前即可。</p>
+    </div>
+  </div>
+
+  <p><strong>这个切割反过来强制了场景垂直</strong>：想要实时，就必须把可查的信息限制在"可预取的数据源 + 端侧知识"；想要开放搜索，就必须接受秒级延迟。两者在架构上互斥。</p>
+
+  <h3>第二笔：功耗——刚好一天，没有余量</h3>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>组件</th><th>功耗</th><th>占空比</th><th>日均等效</th></tr></thead>
+    <tbody>
+      <tr><td>VAD / KWS 常开</td><td class="num">~1 mW</td><td class="num">100%</td><td class="num">1 mW</td></tr>
+      <tr><td>端侧 ASR</td><td class="num">~50 mW</td><td class="num">~20%</td><td class="num">10 mW</td></tr>
+      <tr><td>NPU 事件抽取</td><td class="num">~200 mW</td><td class="num">~5%</td><td class="num">10 mW</td></tr>
+      <tr><td>蓝牙 + 偶尔上行</td><td class="num">~5 mW</td><td class="num">100%</td><td class="num">5 mW</td></tr>
+      <tr class="total"><td>合计</td><td class="num"></td><td class="num"></td><td class="num">~26 mW</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>按挂坠形态 300 mAh / 3.7 V（≈1.1 Wh）计算：<strong>约 40 小时理论值，工程余量打对折后约 17–20 小时</strong>。刚好一天，没有余量。</p>
+
+  <p>这直接否掉了眼镜形态——主流 AI 眼镜重负载续航只有 3–5 小时，装不下"常开 VAD + 蓝牙常连"这套组合。而<strong>耳机 + 充电盒</strong>能整天循环供电，且耳机是天然私密通道（只有用户听得到），符合"提醒不该被第三方听到"这条硬约束。</p>
+
+  <h3>第三笔：成本——云端 ASR 一项就能击穿订阅模型</h3>
+
+  <p>按每天 8 小时对话场景估算（实际有效语音约 4 小时，≈4.8 万字）：</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>方案</th><th>日流量</th><th>月度成本（估）</th><th>结论</th></tr></thead>
+    <tbody>
+      <tr><td>音频全量出端 + 云端 ASR</td><td class="num">≈115 MB/天</td><td class="num">≈¥72/月</td><td>单这一项就超过 30 元订阅费</td></tr>
+      <tr><td>端侧 ASR，只上行事件文本</td><td class="num">KB 级</td><td class="num">≈¥3–5/月</td><td>可行</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>（按 ¥0.3/小时 ASR 市价与 32 kbps 音频码率估算。）</p>
+
+  <p>所以端侧化不是性能优化，是<strong>商业模型能不能成立的前提</strong>。"算力限制""电力限制"不是待解决的问题，是架构的输入条件。</p>
+</section>
+
+<!-- ============ 06 ============ -->
+<section id="s6">
+  <div class="sec-label">06 / 局限</div>
+  <h2>局限与约束：我们已知但没解决的</h2>
+
+  <p class="lead">这一节是本草案的主体之一。以下每一条都是设计上的真实缺口，不是"未来会优化"的委婉说法。标注为<span class="tag dead" style="text-decoration:none;">未解</span>的，意味着当前没有可行方案。</p>
+
+  <div class="limits">
+
+    <div class="limit">
+      <div class="ln">01</div>
+      <div>
+        <h4>延迟：开放域实时插话做不到 <span class="hard no">未解</span></h4>
+        <p>开放式联网查证端到端 3–6 秒，而对话中的"黄金窗口"往往只有两三秒。这不是工程优化能填的差距，是链路结构的必然结果。本草案的应对是改变产品形态（决策纠正而非实时打断），而不是假装能解决。</p>
+      </div>
+    </div>
+
+    <div class="limit">
+      <div class="ln">02</div>
+      <div>
+        <h4>数据：比价类需求无解 <span class="hard no">未解</span></h4>
+        <p>"这个报价是否高于市场价"不是推理题，是数据题。长尾商品的价格库无法覆盖，且"市场价"本身模糊（同一件衣服商场与批发市场差数倍）。本草案承认这一整类场景不可做，而不是用 LLM 猜价格。</p>
+        <p>相对地，"金额算错"是可判定的：对话里有单价、数量、总价，做算术校验即可，接近 100% 精度、零外部依赖。<strong>同一个"购物助手"里，这两个子功能的可行性差一个数量级</strong>。</p>
+      </div>
+    </div>
+
+    <div class="limit">
+      <div class="ln">03</div>
+      <div>
+        <h4>精度：端侧判定模型的天花板未知 <span class="hard no">未解</span></h4>
+        <p>1B–3B 级端侧模型在自由对话流上做"是否改主意"的主观判断，精度能到多少，<strong>本项目没有实测数据</strong>。这是整个设计最大的未知量，也是"能跑的最小实现"首先要回答的问题。</p>
+        <p>已知的是方向性约束：误报代价远大于漏报，所以系统必须往 precision 极度倾斜，宁可漏。代价是 recall 会很难看。</p>
+      </div>
+    </div>
+
+    <div class="limit">
+      <div class="ln">04</div>
+      <div>
+        <h4>合规：常驻录他人对话 <span class="hard no">未解</span></h4>
+        <p>涉及《个人信息保护法》与《民法典》隐私权。技术上能做的规避只有三条：<strong>音频不出端、不留存原文、明确告知</strong>。但这三条只能降低风险等级，不能消除——因为在他人不知情的情况下持续收音，本身就处在灰色地带。</p>
+        <p>本草案的立场：演示与开源阶段全部使用合成语料，不涉及真人录音。这是边界，不是过渡方案。</p>
+      </div>
+    </div>
+
+    <div class="limit">
+      <div class="ln">05</div>
+      <div>
+        <h4>记忆：短窗口丢失跨时段叙事 <span class="hard no">部分可解</span></h4>
+        <p>当前设计只用滑动短窗口，进入新场景即丢弃前文。这换来了三个好处（无合规风险、无检索质量问题、无状态污染），但代价明确：<strong>真实诈骗往往分阶段推进</strong>（建立信任 → 试探 → 分步要钱），可能跨几天、跨多通电话，短窗口接不住。</p>
+        <p>可能的补丁：不存对话，只存"事件摘要"（谁、何时、涉及什么动作、多少金额），几十字节的结构化字段。隐私上依然干净，但跨时段线索得以保留。<strong>此补丁尚未验证。</strong></p>
+      </div>
+    </div>
+
+    <div class="limit">
+      <div class="ln">06</div>
+      <div>
+        <h4>输入：本草案不含 ASR <span class="hard yes">范围外</span></h4>
+        <p>v1 的输入是预先构造的、带说话人标签的口语转写稿。真实 ASR 的错字率、抢话、方言、噪声、说话人分离错误，全部未覆盖。</p>
+        <p>这是一个刻意的裁剪：ASR 是成熟件，做出来不加分，做砸了毁演示。但必须诚实说明——<strong>本草案验证的是"判定链路"，不是"完整的语音产品"</strong>。</p>
+      </div>
+    </div>
+
+    <div class="limit">
+      <div class="ln">07</div>
+      <div>
+        <h4>评估：没有 ground truth <span class="hard no">未解</span></h4>
+        <p>"这一句本该提醒但没提醒"没有任何自动标注手段。只能靠人工写 fixture、人工标注、人工复核。样本量注定很小（数十段对话），统计意义有限。</p>
+        <p>更麻烦的是决策翻转率：它需要知道用户"本来会怎么做"，而这只能通过追问或推断获得，本身就有偏差。</p>
+      </div>
+    </div>
+
+    <div class="limit">
+      <div class="ln">08</div>
+      <div>
+        <h4>伦理：提醒会把人推到选边站的位置 <span class="hard no">未解</span></h4>
+        <p>如果老人正信任那个销售，AI 说"这是骗人的"，老人面临的是一个二选一：信 AI 还是信眼前这个人。实际结果常常是<strong>更抗拒 AI</strong>。</p>
+        <p>由此派生一条反直觉的推论：<strong>给老人调高出言频率，会加速被嫌弃</strong>。老人最反感的不是 AI 说错，是被当小孩管。这条约束直接否掉了"用更高频次表达关怀"的产品思路。</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ 07 ============ -->
+<section id="s7">
+  <div class="sec-label">07 / 边界</div>
+  <h2>明确不做：这些不是待办，是排除</h2>
+
+  <p>一个设计草案的可信度，很大程度上取决于它敢不敢列"不做"。以下是本草案的排除清单——其中每一条都曾被讨论过，然后被主动放弃：</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>不做</th><th>理由</th></tr></thead>
+    <tbody>
+      <tr><td>通用助手</td><td>判定边界无法收敛，"该提醒"的集合变成无限</td></tr>
+      <tr><td>比价 / 市场价判断</td><td>数据不可得，且"市场价"本身模糊（见 06-02）</td></tr>
+      <tr><td>会议纪要产品</td><td>该赛道已有成熟玩家，且与"提醒"的功耗/延迟需求互相冲突</td></tr>
+      <tr><td>长期记忆</td><td>合规风险与检索质量问题远大于收益；只保留事件摘要补丁</td></tr>
+      <tr><td>ASR / 发声 / UI</td><td>v1 范围外，属于"不加分但可能毁演示"的部分</td></tr>
+      <tr><td>儿童场景</td><td>伦理风险高于价值，且涉及《未成年人网络保护条例》的额外约束</td></tr>
+      <tr><td>眼镜形态</td><td>电池装不下常开链路；且眼镜是"给别人看的"，与私密提醒相悖</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 08 ============ -->
+<section id="s8">
+  <div class="sec-label">08 / 场景</div>
+  <h2>场景矩阵：技术的可行性 × 政策的契合度</h2>
+
+  <p>判定确定性是硬约束（决定能不能做），政策与付费方决定值不值得做。两者交叉后，真正值得作为主线的场景很少：</p>
+
+  <div class="tbl-wrap scene">
+  <table>
+    <colgroup><col style="width:31%"><col style="width:9%"><col style="width:26%"><col style="width:19%"><col style="width:15%"></colgroup>
+    <thead><tr><th>场景</th><th>确定性</th><th>政策依据</th><th>付费方</th><th>定位</th></tr></thead>
+    <tbody>
+      <tr><td>老人反诈（冒充公检法 / 保健品 / 杀猪盘）</td><td><span class="dots">●●●</span></td><td>《反电信网络诈骗法》2022.12；银发经济国办意见 2024.1</td><td>子女·社区</td><td><span class="tag main">主线</span></td></tr>
+      <tr><td>陪同就医（听不懂医嘱、记不住）</td><td><span class="dots">●●●</span></td><td>分级诊疗、家庭医生签约</td><td>子女</td><td><span class="tag main">主线候选</span></td></tr>
+      <tr><td>用药安全（相互作用、重复用药）</td><td><span class="dots">●●●</span></td><td>健康中国 2030</td><td>子女·药企</td><td><span class="tag main">主线候选</span></td></tr>
+      <tr><td>视障出行提醒</td><td><span class="dots">●●●</span></td><td>《无障碍环境建设法》2023.9</td><td>残联·公益</td><td><span class="tag main">政策最优</span></td></tr>
+      <tr><td>听障对话转写 + 关键提示</td><td><span class="dots">●●●</span></td><td>同上</td><td>同上</td><td><span class="tag side">可并入上条</span></td></tr>
+      <tr><td>购物消费维权（<em>算错账</em>）</td><td><span class="dots">●●●</span></td><td>《消保法实施条例》2024.7</td><td>C 端弱</td><td><span class="tag side">演示支线</span></td></tr>
+      <tr><td>购物消费维权（<em>比价</em>）</td><td><span class="dots">●○○</span></td><td>同上</td><td>—</td><td><span class="tag dead">死路</span></td></tr>
+      <tr><td>生活决策（天气 / 交通 / 出行）</td><td><span class="dots">●●○</span></td><td>无</td><td>C 端</td><td><span class="tag side">演示支线</span></td></tr>
+      <tr><td>金融理财话术提醒（"保本高息"）</td><td><span class="dots">●●○</span></td><td>投资者适当性管理</td><td>券商·银行</td><td><span class="tag side">B 端待探</span></td></tr>
+      <tr><td>谈判 / 采购实时提示</td><td><span class="dots">●●○</span></td><td>无</td><td>企业</td><td><span class="tag side">需行业数据</span></td></tr>
+      <tr><td>儿童上网风险</td><td><span class="dots">●●○</span></td><td>《未成年人网络保护条例》2024.1</td><td>家长</td><td><span class="tag dead">伦理风险</span></td></tr>
+      <tr><td>会议决策提醒（"你上个月拒过这个"）</td><td><span class="dots">●●●</span></td><td>无</td><td>企业</td><td><span class="tag dead">与无记忆冲突</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p><strong>三圈交集（技术可判定 + 政策有明文 + 付费方清晰）只有三个：老人反诈、陪同就医、用药安全。</strong>而且这三个可以共用同一个硬件与同一套 L1 事件 schema——它们不是三个产品，是同一件事的三项能力。</p>
+
+  <p>"演示支线"里的场景（购物算错账、天气决策）承担的是另一个职责：<strong>在演示里讲清"主动提醒"这个机制有多惊艳</strong>，但不承担长期叙事。这个分工必须提前说清，否则很容易把最上镜的场景误当成主线。</p>
+</section>
+
+<!-- ============ 09 ============ -->
+<section id="s9">
+  <div class="sec-label">09 / 演进</div>
+  <h2>通用性来自抽象层，不来自场景堆叠</h2>
+
+  <p>一个常见的设想是：先分别做多个垂直场景，等它们长出来再合并，最终得到通用助手。这条路我不认为成立，原因很具体：</p>
+
+  <p>五个场景共享的只有 L0（VAD/KWS）和 L1 的 ASR——这两层本来就是通用的。而 L2 的判定逻辑、L3 的话术、依赖的数据源、事件类型的枚举，每个场景完全不同。<strong>把五个场景各做一遍，得到的是五个并行的垂直产品，不是一个通用助手。</strong>它们之间不会自动合并，只会共享一个外壳。</p>
+
+  <blockquote>
+    通用性不是"合并"出来的，是"抽象"出来的。
+  </blockquote>
+
+  <p>所以路径应该是反的：v1 只做一个场景，但那个 <strong>event schema 要按"将来有二十个场景"来设计</strong>——事件类型是插件，不是硬编码；L2 吃统一的事件格式，不关心事件来自哪个场景。这样加场景是加插件，不是重写。</p>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>阶段</th><th>目标</th><th>判定标准</th></tr></thead>
+    <tbody>
+      <tr><td><b>v0.1</b> 最小链路</td><td>单场景（老人反诈）、fixture 输入、跑出 precision 数字</td><td>precision ≥ 90%，且失败案例被公开列出</td></tr>
+      <tr><td><b>v0.2</b> 插件化</td><td>第二、第三个场景接入，不改 L1/L2 主干</td><td>新增场景不修改 schema 结构</td></tr>
+      <tr><td><b>v0.3</b> 端侧</td><td>ASR + 事件抽取跑上真实硬件</td><td>功耗账与延迟账被实测复核</td></tr>
+      <tr><td><b>v1.0</b> 形态完整</td><td>含发声、含形态、含真实环境测试</td><td>决策翻转率在真实场景中被独立测量</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>每个阶段的门槛都是<strong>数字</strong>，不是"做完了"。这是为了防一件事：这类项目最容易在 v0.1 就停下来讲愿景，因为讲愿景比跑数字舒服得多。</p>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="s10">
+  <div class="sec-label">10 / 形态</div>
+  <h2>开源形态：交付物不是一份文档，是一个能跑的最小实现</h2>
+
+  <p>如果这个项目的目标是<strong>让行业相信这件事该有人做</strong>，那么参照物不是产品发布会，是那些能被 <span class="mono">git clone</span> 下来直接跑的仓库。这类项目带节奏的原因从来不是文档写得好，是<strong>代码能跑、数字能复现</strong>。一个只有架构图的仓库，会被归进"又一个 idea"。</p>
+
+  <p>所以交付物有两个，职责必须分开：</p>
+
+  <div class="grid2">
+    <div class="card ac">
+      <h4>网页（本文）</h4>
+      <p>读者是路过的开发者和研究者。目的：让人相信<strong>这件事该有人做</strong>。内容：命题、判据、难点、三笔账、沉默可视化。</p>
+    </div>
+    <div class="card gn">
+      <h4>仓库</h4>
+      <p>读者是想 clone 的人。目的：让人相信<strong>你真的做了</strong>。内容：fixture、schema、评测脚本、跑出来的数字、以及失败案例。</p>
+    </div>
+  </div>
+
+  <h3>"能跑"的验收线</h3>
+
+  <p>不是功能完整，是<strong>能出一个数</strong>：</p>
+
+<pre><span class="c">$ python run.py --fixture anti_fraud_01</span>
+<span class="c">─────────────────────────────────────────────</span>
+  fixture          anti_fraud_01  (18 turns)
+  alerts fired     1 / 18 turns
+  <span class="kk">precision        0.92</span>
+  recall           0.67
+  decision flip    1 / 1
+  <span class="c">─────────────────────────────────────────────</span>
+  <span class="c">missed:  turn 6  "不能跟家里人说"  (isolation tactic,</span>
+  <span class="c">         judged silent — 见 FAILURES.md#f-003)</span>
+  <span class="c">false:   turn 11 "转账" (正确判定为非诈骗，但话术过重)</span></pre>
+
+  <p>注意最后两行——<strong>开源项目最忌讳"全部通过"</strong>。一个把误报案例列出来、并写清"我在哪一步判错了"的 README，可信度远高于一个宣称 100% 的仓库。而且这恰恰是本文想论证的核心：<strong>这件事的难点在 precision，不在能力</strong>。</p>
+
+  <h3>仓库结构（拟）</h3>
+
+<pre>restraint/
+├── <span class="s">schema/</span>
+│   ├── event.schema.json      <span class="c">// L1 输出，可扩展插件</span>
+│   └── verdict.schema.json    <span class="c">// L2 输出，silent 是一等公民</span>
+├── <span class="s">fixtures/</span>
+│   ├── anti_fraud_01.json     <span class="c">// speaker + text + t + 标注</span>
+│   └── README.md              <span class="c">// 标注口径说明</span>
+├── <span class="s">pipeline/</span>
+│   ├── extract.py             <span class="c">// L1 事件抽取</span>
+│   ├── decide.py              <span class="c">// L2 判定</span>
+│   └── speak.py               <span class="c">// L3 话术</span>
+├── <span class="s">eval/</span>
+│   └── run.py                 <span class="c">// precision / recall / flip rate</span>
+├── FAILURES.md                <span class="c">// 我们判错的案例，逐条</span>
+└── README.md</pre>
+
+  <p>设计上有一条硬规定：<strong>fixture 里必须带 speaker 标签</strong>。因为"这句话是谁说的"是判定的命门——"转钱到安全账户"若是对方说的才是诈骗信号，若是老人自己复述的，性质完全不同。用不带 speaker 的干净书面文本做测试，等于在一个真实世界不存在的输入上调试。</p>
+</section>
+
+<!-- ============ 11 ============ -->
+<section id="s11">
+  <div class="sec-label">11 / 未决</div>
+  <h2>仍然悬空的问题</h2>
+
+  <p>这一节存在的原因很简单：如果一份草案没有任何未决问题，说明它没被认真想过。以下每一条都会实质影响架构，且目前没有答案。</p>
+
+  <ul class="q-list">
+    <li><b>端侧判定模型具体选哪个？</b>1B 级还是 3B 级、量化到什么精度、在什么芯片上跑——这个决定直接决定功耗账能不能成立。目前悬空。</li>
+    <li><b>事件 schema 的粒度定在哪？</b>太粗会漏（"资金动作"盖不住"承诺"和"威胁"的差别），太细会让 L1 的抽取精度崩掉。这个平衡点要靠实测找。</li>
+    <li><b>话术风格由谁定？</b>"别转，真警察不会让你转钱"这句话的语气，可能比判定准确率更决定用户是否采纳。而它目前是拍脑袋写的。</li>
+    <li><b>"不提醒"的默认值是否需要用户可调？</b>如果用户嫌吵调高阈值，precision 上升但 recall 下降；这个开关放不放给用户，涉及产品哲学。</li>
+    <li><b>fixture 怎么造才不失真？</b>手写会过于规整，真人念又受限于合规。目前倾向"真人念一遍再用 ASR 转出来"，但未验证。</li>
+    <li><b>决策翻转率怎么测才算数？</b>问用户"你本来会怎么做"必然有回忆偏差；观察行为又受限于演示环境。目前只能靠人工复核。</li>
+    <li><b>这套东西在多大程度上依赖"特定语言的特定话术"？</b>如果事件 schema 高度依赖中文诈骗话术，那"通用性"这个叙事就要打折扣。</li>
+  </ul>
+</section>
+
+<!-- ============ 12 ============ -->
+<section id="s12">
+  <div class="sec-label">12 / 对标</div>
+  <h2>已有的尝试，以及它们各自的取舍</h2>
+
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>项目 / 产品</th><th>做到了什么</th><th>取舍 / 启发</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Google Pixel Scam Detection</strong></td><td>端侧、实时、通话中主动出声提醒诈骗</td><td>它敢做实时插话，是因为<strong>窄到极致</strong>——只判断"是否诈骗通话"，不做购物、不做会议、不做陪伴。这是"垂直换实时"最强的经验证据。</td></tr>
+      <tr><td>Plaud NotePin / Limitless Pendant</td><td>把"记录"做成了产品级，形态成熟</td><td>主动提醒基本没做。不是没想到，是这条路太难。可作为"记录容易、判定难"的反证。</td></tr>
+      <tr><td>OpenClaw 类开源 agent</td><td>能被 clone、能跑、社区自发传播</td><td>带节奏的前提是<strong>可运行</strong>，不是文档漂亮。这是本文第 10 节的直接依据。</td></tr>
+      <tr><td>通义听悟 / 飞书妙记</td><td>会议转写与摘要已高度成熟</td><td>验证了"记录"这条链路的工程可行性，但没有涉及"何时开口"这个真问题。</td></tr>
+      <tr><td>Clippy / Google Now</td><td>早期主动式尝试</td><td>两者都死在同一处：判定标准与"用户是否需要"无关。这是本文第 02 节判据的来源。</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p class="lead" style="margin-top:30px;">一句话收束：<strong>这个方向上，做"记录"的人很多，做"判定"的人很少，而判定才是这件事的全部难度所在。</strong>本草案不宣称解决了它，只宣称把它拆成了一个可以被验证的形式——<span class="k">一个 fixture、一个 schema、一个 precision 数字</span>。</p>
+</section>
+
+<footer>
+  <div class="sig">克制 —— 主动式助手设计草案 · v0.1</div>
+  <div>2026-11-02 · 基于一次设计讨论整理</div>
+  <div>本文所有数字为估算，均未经实测 · 不含真人录音 · 非产品宣传</div>
+</footer>
+
+</main>
+</div>
+</body>
+</html>
