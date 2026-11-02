@@ -761,6 +761,15 @@ def main() -> int:
     if not args.check and not args.no_feishu and not args.no_wiki:
         wiki_info = feishu_wiki_sync(cfg, pages, manifest, listing, state)
 
+    # 云空间没有可读的内容 hash，只能在「这次上传确实没失败」且「文件确实在远端」
+    # 的前提下记下本地 sha。必须放在算状态之前，否则日报会把自己刚传上去的文件
+    # 报成未同步。
+    fs_failed = (feishu_info.get("summary") or {}).get("failed", 0)
+    if not args.check and not args.no_feishu and feishu_info.get("ok") and not fs_failed:
+        for name, path in pages.items():
+            if name in listing:
+                state.setdefault("feishu_sha", {})[name] = sha_of(path)
+
     # ---- 各通道真值，全部在推送之后算，日报反映的是「现在到底同步没」
     gh = github_status(pages, cfg)
     fs = feishu_status(pages, listing, state)
@@ -843,13 +852,7 @@ def main() -> int:
                 "title": title_of(path),
                 "seen_at": datetime.now().isoformat(timespec="seconds"),
             }
-        # feishu_sha 只在「上传确实没失败」且「文件确实在远端」时才记。
-        # 这一条是旧版最大的坑：以前 --no-feishu 也会把文件标成已同步。
-        fs_failed = (feishu_info.get("summary") or {}).get("failed", 0)
-        if not args.no_feishu and feishu_info.get("ok") and not fs_failed:
-            for name, path in pages.items():
-                if name in listing:
-                    state.setdefault("feishu_sha", {})[name] = sha_of(path)
+        # feishu_sha 已在算状态前记好，这里只管内容快照和清理
         # 本地已删的文件，三张表里的残渣一起清掉
         for key in ("seen", "feishu_sha", "wiki_nodes"):
             table = state.setdefault(key, {})
