@@ -381,7 +381,35 @@ def build_collections(manifest: dict) -> list[str]:
 def git_sync(cfg: dict) -> dict:
     run(["git", "add", "-A"])
     status = run(["git", "status", "--porcelain"]).stdout.strip()
+
+    def push_with_retry() -> tuple[bool, int, str]:
+        push = None
+        attempt = 0
+        for attempt, wait in enumerate((0, 5, 15), start=1):
+            if wait:
+                time.sleep(wait)
+            push = run(["git", "push", cfg["git_remote"], cfg["git_branch"]])
+            if push.returncode == 0:
+                return True, attempt, ""
+            err = (push.stderr or push.stdout).strip()
+            # 只有网络/ TLS 类错误值得重试；鉴权失败、non-fast-forward 重试也没用
+            if not any(k in err.lower() for k in ("handshake", "could not resolve",
+                                                  "connection", "timed out", "timeout",
+                                                  "unable to access")):
+                return False, attempt, err
+        return False, attempt, (push.stderr or push.stdout).strip()
+
     if not status:
+        # 工作区干净，但上一次推送可能失败留下了未推送的提交，得补推上去
+        ahead = run(["git", "rev-list", "--count",
+                     f"origin/{cfg['git_branch']}..HEAD"]).stdout.strip()
+        if ahead.isdigit() and int(ahead) > 0:
+            ok, attempt, err = push_with_retry()
+            if not ok:
+                return {"committed": False, "pushed": False,
+                        "detail": f"补推本地 {ahead} 个提交失败（重试 {attempt} 次）：{err[:400]}"}
+            return {"committed": False, "pushed": True,
+                    "detail": f"工作区无新变化，补推本地 {ahead} 个提交"}
         return {"committed": False, "pushed": False, "noop": True, "detail": "工作区无变化"}
     n = len([l for l in status.splitlines() if l.strip()])
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -389,22 +417,10 @@ def git_sync(cfg: dict) -> dict:
     if commit.returncode != 0:
         return {"committed": False, "pushed": False,
                 "detail": (commit.stderr or commit.stdout).strip()[:400]}
-    push = None
-    for attempt, wait in enumerate((0, 5, 15), start=1):
-        if wait:
-            time.sleep(wait)
-        push = run(["git", "push", cfg["git_remote"], cfg["git_branch"]])
-        if push.returncode == 0:
-            break
-        err = (push.stderr or push.stdout).strip()
-        # 只有网络/ TLS 类错误值得重试；鉴权失败、non-fast-forward 重试也没用
-        if not any(k in err.lower() for k in ("handshake", "could not resolve",
-                                              "connection", "timed out", "timeout",
-                                              "unable to access")):
-            break
-    if push.returncode != 0:
+    ok, attempt, err = push_with_retry()
+    if not ok:
         return {"committed": True, "pushed": False,
-                "detail": f"push 失败（重试 {attempt} 次）：{(push.stderr or push.stdout).strip()[:400]}"}
+                "detail": f"push 失败（重试 {attempt} 次）：{err[:400]}"}
     return {"committed": True, "pushed": True, "detail": f"提交并推送 {n} 个文件"}
 
 
