@@ -1,0 +1,2208 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="js">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepSeek Super-agent 解构 · 把操作系统装进 Agent</title>
+<meta name="description" content="DeepSeek Super-agent 架构的可交互解构：用一台可以玩的机器，讲清 Router/Worker 双层、事件驱动、Inline &amp; Spill、存算分离与看门狗，以及它们与传统操作系统的一一对应。">
+<style>
+/* ============ tokens ============ */
+:root{
+  --paper:#FBFAF6;
+  --paper-2:#F4F1E9;
+  --ink:#14171C;
+  --ink-2:#3D434D;
+  --ink-3:#6B7280;
+  --line:#E2DED2;
+  --line-2:#CFCAB9;
+  --blue:#3F5BF6;
+  --blue-soft:#E8EBFF;
+  --orange:#E0592F;
+  --orange-soft:#FDECE4;
+  --green:#12855C;
+  --green-soft:#E2F4EC;
+  --purple:#6B4EE6;
+  --purple-soft:#EEEAFD;
+  --dark:#101318;
+  --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono","Cascadia Code",Consolas,"Liberation Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --shadow:0 1px 2px rgba(20,23,28,.04),0 12px 32px -18px rgba(20,23,28,.22);
+  --r:14px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.72;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    linear-gradient(rgba(20,23,28,.028) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(20,23,28,.028) 1px,transparent 1px);
+  background-size:56px 56px;
+}
+::selection{background:var(--blue);color:#fff}
+h1,h2,h3,h4{margin:0;line-height:1.18;letter-spacing:-.02em;font-weight:680}
+p{margin:0 0 1em}
+a{color:var(--blue);text-decoration:none;border-bottom:1px solid rgba(63,91,246,.3)}
+a:hover{border-bottom-color:var(--blue)}
+code{font-family:var(--mono);font-size:.86em;background:var(--paper-2);padding:2px 6px;border-radius:5px;border:1px solid var(--line)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px}
+.mono{font-family:var(--mono)}
+.dim{color:var(--ink-3)}
+.small{font-size:13.5px;line-height:1.6}
+
+/* ============ status bar ============ */
+.statusbar{
+  position:fixed;top:0;left:0;right:0;z-index:100;height:54px;
+  background:rgba(251,250,246,.88);backdrop-filter:blur(14px) saturate(1.2);
+  border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:18px;padding:0 20px;
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;
+}
+.sb-brand{display:flex;align-items:center;gap:9px;font-weight:600;color:var(--ink);flex:0 0 auto}
+.sb-dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(18,133,92,.14);animation:pulse 2.4s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.sb-nav{display:flex;gap:2px;flex:1;overflow:hidden}
+.sb-nav a{
+  color:var(--ink-3);border:0;padding:4px 8px;border-radius:5px;white-space:nowrap;
+  transition:.18s;font-size:11px;
+}
+.sb-nav a:hover{background:var(--paper-2);color:var(--ink)}
+.sb-nav a.on{background:var(--ink);color:var(--paper)}
+.sb-meter{display:flex;align-items:center;gap:8px;flex:0 0 auto;color:var(--ink-3)}
+.sb-track{width:104px;height:6px;border-radius:3px;background:var(--paper-2);border:1px solid var(--line);overflow:hidden}
+.sb-fill{height:100%;width:100%;background:var(--green);transition:width .4s ease,background .4s}
+@media(max-width:860px){.sb-nav,.sb-meter{display:none}}
+
+/* ============ hero ============ */
+.hero{padding:130px 0 60px;position:relative;overflow:hidden}
+.hero-grid{display:grid;grid-template-columns:1.02fr .98fr;gap:48px;align-items:center}
+@media(max-width:900px){.hero-grid{grid-template-columns:1fr;gap:36px}}
+.kicker{
+  display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--blue);
+  border:1px solid rgba(63,91,246,.28);background:var(--blue-soft);
+  padding:5px 11px;border-radius:999px;margin-bottom:22px;
+}
+h1{font-size:clamp(38px,5.6vw,72px);font-weight:720;letter-spacing:-.035em}
+h1 em{font-style:normal;color:var(--blue);position:relative;white-space:nowrap}
+h1 em::after{content:"";position:absolute;left:0;right:0;bottom:-.04em;height:.09em;background:var(--orange);opacity:.55;transform:scaleX(0);transform-origin:left;animation:underline 1s .5s forwards}
+@keyframes underline{to{transform:scaleX(1)}}
+.lede{font-size:17.5px;color:var(--ink-2);max-width:46ch;margin-top:20px;line-height:1.75}
+.hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:28px}
+.chip{
+  font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:6px;
+  border:1px solid var(--line);background:#fff;color:var(--ink-2);
+}
+.chip b{color:var(--ink);font-weight:600}
+.hero-fig{border:1px solid var(--line);border-radius:var(--r);background:#fff;box-shadow:var(--shadow);overflow:hidden}
+.fig-cap{padding:9px 14px;border-top:1px solid var(--line);font-family:var(--mono);font-size:10.5px;color:var(--ink-3);display:flex;justify-content:space-between;gap:10px;background:var(--paper-2)}
+
+/* ============ sections ============ */
+section{scroll-margin-top:70px}
+.sec{padding:76px 0;border-top:1px solid var(--line)}
+.sec-head{display:grid;grid-template-columns:118px 1fr;gap:18px;margin-bottom:38px;align-items:start}
+@media(max-width:640px){.sec-head{grid-template-columns:1fr;gap:8px}}
+.sec-no{
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.08em;white-space:nowrap;
+  border-top:1px solid var(--line-2);padding-top:10px;
+}
+.sec-kicker{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--orange);margin-bottom:10px}
+h2{font-size:clamp(27px,3.5vw,42px);letter-spacing:-.03em}
+.sec-sub{color:var(--ink-2);font-size:16px;margin-top:14px;max-width:62ch}
+h3{font-size:20px;margin:34px 0 12px;letter-spacing:-.015em}
+h4{font-size:15.5px;margin:0 0 6px}
+
+/* ============ cards ============ */
+.card{border:1px solid var(--line);border-radius:var(--r);background:#fff;padding:22px;box-shadow:var(--shadow)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:900px){.grid-3,.grid-4{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+.win{border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;box-shadow:var(--shadow)}
+.win-bar{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--paper-2);border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.win-bar i{width:8px;height:8px;border-radius:50%;background:var(--line-2);display:inline-block}
+.win-bar i:nth-child(1){background:#E8886F}
+.win-bar i:nth-child(2){background:#E8C86F}
+.win-bar i:nth-child(3){background:#8FCB9B}
+.win-bar span{margin-left:6px}
+
+/* ============ reveal ============ */
+html.js .reveal{opacity:0;transform:translateY(20px)}
+html.js .reveal.in{opacity:1;transform:none;transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+
+/* ============ buttons ============ */
+.btn{
+  font-family:var(--sans);font-size:14px;font-weight:600;border-radius:9px;cursor:pointer;
+  padding:10px 18px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);
+  transition:.16s;display:inline-flex;align-items:center;gap:8px;
+}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px -8px rgba(20,23,28,.5)}
+.btn:active{transform:translateY(0)}
+.btn.ghost{background:#fff;color:var(--ink);border-color:var(--line-2)}
+.btn.ghost:hover{background:var(--paper-2)}
+.btn.blue{background:var(--blue);border-color:var(--blue)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+
+/* ============ ch01 game A ============ */
+.ga-hud{display:flex;align-items:center;gap:22px;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
+.ga-hud b{color:var(--ink);font-size:15px;font-variant-numeric:tabular-nums}
+.ga-hud .spacer{flex:1}
+.ga-board{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:16px;background:var(--paper-2);min-height:196px}
+@media(max-width:820px){.ga-board{grid-template-columns:repeat(2,1fr)}}
+.ga-session{
+  background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px;cursor:pointer;
+  transition:.16s;position:relative;overflow:hidden;min-height:150px;display:flex;flex-direction:column;
+  user-select:none;
+}
+.ga-session:hover{border-color:var(--ink-3);transform:translateY(-2px)}
+.ga-session.hot{border-color:var(--orange);background:#FFF9F6;box-shadow:inset 3px 0 0 var(--orange),0 0 0 3px var(--orange-soft);animation:nudge 1.6s ease-in-out infinite}
+.ga-session.busy{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);cursor:progress}
+.ga-session .ga-sh{font-family:var(--mono);font-size:9.5px;color:var(--ink-3);margin-bottom:8px;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ga-session .ga-q{font-size:11.5px;line-height:1.45;color:var(--ink-2);flex:1;display:flex;align-items:center}
+.ga-pill{display:inline-block;font-family:var(--mono);font-size:9.5px;padding:2px 7px;border-radius:99px;background:var(--paper-2);border:1px solid var(--line);color:var(--ink-3);margin-top:8px;align-self:flex-start}
+.ga-session.hot .ga-pill{background:var(--orange-soft);border-color:#F3C6B5;color:var(--orange)}
+.ga-prog{position:absolute;left:0;bottom:0;height:3px;background:var(--blue);width:0%}
+.ga-log{padding:10px 18px;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);border-top:1px solid var(--line);height:64px;overflow:hidden;line-height:1.65;background:#fff}
+.ga-log b{color:var(--orange)}
+.ga-over{
+  position:absolute;inset:0;background:rgba(251,250,246,.96);backdrop-filter:blur(4px);
+  display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:26px;z-index:5;
+}
+.ga-over.show{display:flex}
+.ga-over h4{font-size:20px;margin-bottom:8px}
+.ga-over p{max-width:52ch;font-size:14px;color:var(--ink-2);margin-bottom:16px}
+.ga-wrap{position:relative}
+
+/* ============ ch02 traits ============ */
+.trait{border:1px solid var(--line);border-radius:var(--r);background:#fff;padding:18px;box-shadow:var(--shadow);transition:.22s;position:relative;overflow:hidden}
+.trait:hover{transform:translateY(-4px);border-color:var(--line-2);box-shadow:0 18px 40px -24px rgba(20,23,28,.32)}
+.trait .fig{height:88px;margin:-4px -4px 14px;display:flex;align-items:center;justify-content:center;background:var(--paper-2);border-radius:9px;overflow:hidden}
+.trait h4{font-size:16px;display:flex;align-items:baseline;gap:8px}
+.trait h4 span{font-family:var(--mono);font-size:10px;color:var(--ink-3);letter-spacing:.08em;font-weight:400}
+.trait p{font-size:13.5px;color:var(--ink-2);margin:6px 0 0;line-height:1.62}
+.trait .os-tag{display:inline-block;margin-top:12px;font-family:var(--mono);font-size:9.5px;color:var(--blue);background:var(--blue-soft);border:1px solid #D3DAFF;padding:2px 7px;border-radius:4px}
+
+/* ============ ch03 map ============ */
+.map-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:9px;overflow:hidden;background:#fff}
+.seg button{
+  font-family:var(--mono);font-size:11px;padding:7px 14px;border:0;background:transparent;cursor:pointer;
+  color:var(--ink-3);transition:.15s;letter-spacing:.03em;
+}
+.seg button.on{background:var(--ink);color:var(--paper)}
+.map-hint{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+
+.pairs{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:860px){.pairs{grid-template-columns:1fr}}
+.pair{
+  border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;
+  transition:.22s;cursor:pointer;position:relative;
+}
+.pair:hover{border-color:var(--blue);box-shadow:0 14px 34px -22px rgba(63,91,246,.5)}
+.pair.open{border-color:var(--blue)}
+.pair-top{display:grid;grid-template-columns:1fr 34px 1fr;align-items:stretch}
+.pair-side{padding:14px 14px 12px;min-height:104px;display:flex;flex-direction:column;gap:4px}
+.pair-side.os{background:var(--paper-2)}
+.pair-side.ag{background:#fff}
+.pair-side .lab{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;color:var(--ink-3)}
+.pair-side .nm{font-size:14.5px;font-weight:650;letter-spacing:-.01em;line-height:1.35}
+.pair-side .en{font-family:var(--mono);font-size:9.5px;color:var(--ink-3);line-height:1.4}
+.pair-side .ic{margin-top:auto;height:26px;display:flex;align-items:center}
+.pair-mid{display:flex;align-items:center;justify-content:center;color:var(--ink-3);font-family:var(--mono);font-size:14px;background:#fff;border-left:1px solid var(--line);border-right:1px solid var(--line)}
+.pair:hover .pair-mid{color:var(--blue)}
+.pair-body{display:block;padding:0 16px 16px;border-top:1px dashed var(--line);margin-top:0}
+html.js .pair-body{display:none}
+html.js .pair.open .pair-body{display:block}
+.pair-body p{font-size:13.5px;color:var(--ink-2);margin:14px 0 0;line-height:1.7}
+.pair-body .kv{display:flex;gap:10px;margin-top:10px;font-size:12.5px;font-family:var(--mono);color:var(--ink-3)}
+.pair-body .kv b{color:var(--orange);font-weight:600}
+.pair:hover{transform:translateY(-2px)}
+.map-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:22px;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+.map-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+/* flipped view */
+.flip .pair-side.os{background:#fff}
+.flip .pair-side.ag{background:#F6F7FF}
+.flip .pair-mid{color:var(--blue)}
+
+.quote{
+  border-left:3px solid var(--blue);padding:4px 0 4px 18px;margin:22px 0;
+  font-size:16.5px;line-height:1.7;color:var(--ink-2);
+}
+.quote cite{display:block;font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:8px;letter-spacing:.04em}
+.notes{list-style:none;padding:0;margin:0}
+.notes li{padding:12px 0;border-bottom:1px dashed var(--line);display:flex;gap:12px;font-size:14.5px;line-height:1.65;color:var(--ink-2)}
+.notes li:last-child{border-bottom:0}
+.notes li b{color:var(--ink);font-weight:600}
+.notes .tag{font-family:var(--mono);font-size:9.5px;color:var(--orange);border:1px solid #F3C6B5;background:var(--orange-soft);padding:1px 6px;border-radius:4px;height:fit-content;white-space:nowrap;margin-top:3px}
+
+/* ============ ch04 arch ============ */
+.arch-box{border:1px solid var(--line);border-radius:var(--r);background:#fff;box-shadow:var(--shadow);overflow-x:auto}
+.arch-box svg{display:block;min-width:940px}
+.mods{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+@media(max-width:820px){.mods{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.mods{grid-template-columns:1fr}}
+.mod{display:flex;gap:12px;padding:14px;grid-column:span 2;border:1px solid var(--line);border-radius:10px;background:#fff;transition:.2s}
+.mod:nth-child(4),.mod:nth-child(5){grid-column:span 3}
+@media(max-width:820px){.mod,.mod:nth-child(4),.mod:nth-child(5){grid-column:span 1}}
+.mod:hover{border-color:var(--blue);background:#FCFCFF}
+.mod .n{font-family:var(--mono);font-size:10px;color:var(--blue);border:1px solid #C9D2FF;background:var(--blue-soft);width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.mod h4{font-size:14px;margin:0 0 3px}
+.mod p{font-size:12.5px;color:var(--ink-2);margin:0;line-height:1.55}
+
+/* ============ ch05 game B ============ */
+.gb-hud{display:flex;gap:20px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;color:var(--ink-3);align-items:center}
+.gb-hud b{color:var(--ink);font-size:14px;font-variant-numeric:tabular-nums}
+.gb-main{display:grid;grid-template-columns:1.55fr 1fr;gap:0;min-height:280px}
+@media(max-width:760px){.gb-main{grid-template-columns:1fr}}
+.gb-queue{padding:12px;background:var(--paper-2);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:7px;overflow-y:auto;max-height:330px}
+.gb-empty{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);text-align:center;padding:40px 0}
+.gb-item{
+  display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);
+  border-radius:7px;padding:8px 10px;cursor:pointer;transition:.14s;font-size:12px;
+  animation:slideIn .26s ease;
+}
+@keyframes nudge{0%,100%{transform:translateX(0)}8%{transform:translateX(-2px)}16%{transform:translateX(2px)}24%{transform:translateX(0)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+.gb-item:hover{border-color:var(--blue);transform:translateX(2px)}
+.gb-item .k{font-family:var(--mono);font-size:8.5px;padding:1px 5px;border-radius:3px;flex:0 0 auto;letter-spacing:.03em}
+.gb-item.task .k{background:var(--blue-soft);color:var(--blue);border:1px solid #C9D2FF}
+.gb-item.noise{background:#FAF8F2;opacity:.75}
+.gb-item.noise .k{background:#EFEBE0;color:var(--ink-3);border:1px solid var(--line-2)}
+.gb-item.thread .k{background:var(--purple-soft);color:var(--purple);border:1px solid #D5CBFB}
+.gb-item .t{flex:1;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gb-workers{padding:12px;display:flex;flex-direction:column;gap:8px;background:#fff}
+.gb-worker{border:1px solid var(--line);border-radius:8px;padding:9px 11px;position:relative;overflow:hidden;transition:.2s;flex:1;display:flex;flex-direction:column;justify-content:center}
+.gb-worker.busy{border-color:#C9D2FF;background:#FBFCFF}
+.gb-worker .wh{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:var(--ink-3);margin-bottom:4px}
+.gb-worker .wh b{color:var(--ink);font-size:11px}
+.gb-worker .wt{font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:17px}
+.gb-wbar{height:3px;background:var(--paper-2);border-radius:2px;margin-top:6px;overflow:hidden}
+.gb-wbar i{display:block;height:100%;width:0;background:var(--blue);transition:width .1s linear}
+.gb-acts{display:flex;gap:9px;padding:11px 16px;border-top:1px solid var(--line);flex-wrap:wrap;align-items:center}
+.gb-log{padding:8px 16px;border-top:1px solid var(--line);font-family:var(--mono);font-size:10px;color:var(--ink-3);height:52px;overflow:hidden;line-height:1.6;background:#fff}
+.gb-log b{color:var(--purple)}
+.gb-log i{color:var(--orange);font-style:normal}
+.gb-toast{position:absolute;left:50%;top:14px;transform:translateX(-50%) translateY(-8px);background:var(--ink);color:#fff;font-family:var(--mono);font-size:10px;padding:5px 10px;border-radius:5px;opacity:0;pointer-events:none;transition:.25s;z-index:9}
+.gb-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.gb-wrap{position:relative}
+/* ============ ch06 context ============ */
+.ctx{display:grid;grid-template-columns:1.05fr .95fr;gap:0;min-height:400px}
+@media(max-width:820px){.ctx{grid-template-columns:1fr}}
+.ctx-pane{padding:16px;display:flex;flex-direction:column}
+.ctx-pane.win-side{background:var(--paper-2);border-right:1px solid var(--line)}
+.pane-h{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--ink-3);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.pane-h b{color:var(--ink);font-size:11px}
+.ctx-slots{display:flex;flex-direction:column;gap:6px;min-height:190px;flex:1;align-content:flex-start}
+.msg{
+  display:flex;gap:8px;align-items:flex-start;background:#fff;border:1px solid var(--line);
+  border-radius:7px;padding:7px 9px;font-size:11px;line-height:1.45;cursor:pointer;transition:.16s;
+}
+.msg:hover{border-color:var(--blue);transform:translateY(-1px)}
+.msg .id{font-family:var(--mono);font-size:8px;color:var(--ink-3);flex:0 0 auto;padding-top:2px}
+.msg .tx{color:var(--ink-2);flex:1}
+.msg .sz{font-family:var(--mono);font-size:8px;color:var(--ink-3);flex:0 0 auto;padding-top:2px}
+.msg.stub{background:#FAF8F2;border-style:dashed;opacity:.8}
+.msg.stub .tx{color:var(--ink-3);font-family:var(--mono);font-size:10px}
+.msg.hit{border-color:var(--green);background:var(--green-soft)}
+.ctx-bar{height:7px;background:#fff;border:1px solid var(--line);border-radius:4px;overflow:hidden;margin:10px 0 6px}
+.ctx-bar i{display:block;height:100%;width:62%;background:linear-gradient(90deg,#3F5BF6,#6B4EE6);transition:width .3s}
+.ctx-stat{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:var(--ink-3)}
+.ctx-stat b{color:var(--ink)}
+.ctx-empty{font-family:var(--mono);font-size:10px;color:var(--ink-3);text-align:center;padding:30px 0;border:1px dashed var(--line-2);border-radius:8px}
+
+/* ============ ch07 decouple ============ */
+.power{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.switch{
+  width:60px;height:32px;border-radius:99px;background:var(--green);border:0;cursor:pointer;position:relative;
+  transition:.24s;flex:0 0 auto;
+}
+.switch::after{content:"";position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.24s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.switch.off{background:var(--ink-3)}
+.switch.off::after{left:32px}
+.power .state{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+.power .state b{color:var(--green)}
+.power.off .state b{color:var(--orange)}
+
+.slab{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.slab{grid-template-columns:1fr}}
+.stack{border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;box-shadow:var(--shadow)}
+.stack-h{padding:10px 14px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;display:flex;justify-content:space-between;color:var(--ink-3);background:var(--paper-2)}
+.stack-h b{color:var(--ink)}
+.layer{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;font-size:12px;transition:.3s;position:relative}
+.layer:last-child{border-bottom:0}
+.layer .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3);flex:0 0 auto;box-shadow:0 0 0 3px rgba(107,114,128,.12)}
+.layer .lb{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--ink-3);width:64px;flex:0 0 auto}
+.layer .ds{color:var(--ink-2);flex:1}
+.layer.dead{background:#FDF6F3}
+.stack:nth-child(2) .layer .dot{background:var(--green);box-shadow:0 0 0 3px rgba(18,133,92,.13)}
+.layer.dead .dot{background:var(--orange);box-shadow:0 0 0 3px rgba(224,89,47,.13)}
+.layer.dead .ds{color:var(--orange)}
+.layer.pause{background:#FAF8F2}
+.layer.pause .dot{background:#C9A227;box-shadow:0 0 0 3px rgba(201,162,39,.15)}
+.layer.pause .ds{color:#8A6D0B}
+.stack-note{padding:10px 14px;font-family:var(--mono);font-size:9.5px;color:var(--ink-3);background:var(--paper-2);border-top:1px solid var(--line);line-height:1.6}
+/* ============ ch08 ============ */
+.stat{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;box-shadow:var(--shadow)}
+.stat .big{font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.stat .big small{font-size:14px;font-weight:500;color:var(--ink-3);letter-spacing:0}
+.stat .lb{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--ink-3);margin-bottom:8px}
+.stat .sub{font-size:12px;color:var(--ink-3);margin-top:6px;line-height:1.5}
+.chart{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px;box-shadow:var(--shadow)}
+.chart h4{font-size:14px;margin-bottom:2px}
+.chart .cap{font-family:var(--mono);font-size:9.5px;color:var(--ink-3);margin-bottom:12px}
+
+.risk{display:flex;gap:14px;padding:16px;border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:8px;background:#fff;margin-bottom:10px}
+.risk .no{font-family:var(--mono);font-size:10px;color:var(--orange);flex:0 0 auto;padding-top:2px}
+.risk h4{font-size:14.5px;margin-bottom:3px}
+.risk p{font-size:13px;color:var(--ink-2);margin:0;line-height:1.62}
+.risk.q{border-left-color:var(--ink-3)}
+.risk.q .no{color:var(--ink-3)}
+
+/* ============ ch09 glossary ============ */
+details.gloss{border:1px solid var(--line);border-radius:8px;background:#fff;margin-bottom:7px;overflow:hidden}
+details.gloss summary{
+  padding:11px 14px;cursor:pointer;font-size:13.5px;font-weight:600;list-style:none;
+  display:flex;align-items:center;gap:9px;transition:.15s;
+}
+details.gloss summary::-webkit-details-marker{display:none}
+details.gloss summary::before{content:"+";font-family:var(--mono);font-size:13px;color:var(--blue);width:12px}
+details.gloss[open] summary::before{content:"−"}
+details.gloss summary:hover{background:var(--paper-2)}
+details.gloss .gb{font-family:var(--mono);font-size:9px;color:var(--ink-3);font-weight:400;margin-left:auto}
+details.gloss .body{padding:0 14px 14px 35px;font-size:13px;color:var(--ink-2);line-height:1.68}
+
+.gloss-side{position:sticky;top:78px}
+@media(max-width:820px){.gloss-side{position:static}}
+footer{padding:60px 0 80px;border-top:1px solid var(--line);background:var(--paper-2)}
+footer h3{font-size:16px;margin:0 0 12px}
+footer ol{margin:0;padding-left:20px;font-size:12.5px;color:var(--ink-2);line-height:1.8}
+footer ol li{margin-bottom:7px}
+.foot-note{margin-top:22px;font-family:var(--mono);font-size:10px;color:var(--ink-3);line-height:1.8;border-top:1px solid var(--line);padding-top:16px}
+
+/* ============ responsive ============ */
+@media(max-width:620px){
+  .wrap{padding:0 18px}
+  .sec{padding:54px 0}
+  .hero{padding:104px 0 40px}
+  h1{font-size:clamp(32px,9vw,44px)}
+  .statusbar{padding:0 12px;gap:10px}
+  .sb-brand{font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  html.js .reveal{opacity:1;transform:none}
+}
+</style>
+
+</head>
+<body>
+
+<header class="statusbar">
+  <div class="sb-brand"><span class="sb-dot"></span>SUPER-AGENT OS</div>
+  <nav class="sb-nav">
+    <a href="#ch01">01 瓶颈</a>
+    <a href="#ch02">02 思想</a>
+    <a href="#ch03">03 对照</a>
+    <a href="#ch04">04 解剖</a>
+    <a href="#ch05">05 调度台</a>
+    <a href="#ch06">06 上下文</a>
+    <a href="#ch07">07 存算</a>
+    <a href="#ch08">08 账本</a>
+    <a href="#ch09">09 词典</a>
+  </nav>
+  <div class="sb-meter" title="人类注意力预算：页面演示用，不是真实测量">
+    <span>ATTENTION</span>
+    <div class="sb-track"><div class="sb-fill" id="sbFill"></div></div>
+    <span id="sbPct">100%</span>
+  </div>
+</header>
+
+<main>
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <div class="kicker">DeepSeek Harness · 2026.10.31</div>
+        <h1>把<em>操作系统</em><br>装进 Agent</h1>
+        <p class="lede">
+          DeepSeek 的 Super-agent 没有发明新理论。它把调度器、地址空间、页缓存、看门狗这些
+          活了几十年的老东西，一件一件搬进了智能体。结果是：会话不再是工作单位，
+          人也不再是那个负责切换上下文的 CPU。
+        </p>
+        <div class="hero-meta">
+          <span class="chip"><b>Router</b> / Worker 双层</span>
+          <span class="chip"><b>p50</b> 12.4 min</span>
+          <span class="chip"><b>vs</b> 单会话 20.4 min</span>
+          <span class="chip">MIT 原型</span>
+        </div>
+        <div style="margin-top:30px;display:flex;gap:12px;flex-wrap:wrap">
+          <a class="btn blue" href="#ch01" style="border-bottom:0">从瓶颈开始 →</a>
+          <a class="btn ghost" href="#ch03" style="border-bottom:0">直接看 OS 对照</a>
+        </div>
+      </div>
+
+      <div class="hero-fig reveal">
+        <svg viewBox="0 0 520 420" width="100%" style="display:block;background:#fff">
+          <defs>
+            <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 z" fill="#CFCAB9"/>
+            </marker>
+            <radialGradient id="glow"><stop offset="0%" stop-color="#3F5BF6" stop-opacity=".18"/><stop offset="100%" stop-color="#3F5BF6" stop-opacity="0"/></radialGradient>
+          </defs>
+
+          <!-- grid -->
+          <g stroke="#EFEBE0" stroke-width="1">
+            <path d="M0 70H520M0 140H520M0 210H520M0 280H520M0 350H520"/>
+            <path d="M70 0V420M140 0V420M210 0V420M280 0V420M350 0V420M420 0V420"/>
+          </g>
+
+          <text x="24" y="30" font-family="monospace" font-size="10" fill="#6B7280" letter-spacing="1.5">EVENT SOURCES</text>
+          <g font-family="monospace" font-size="9.5" fill="#3D434D">
+            <rect x="24" y="42" width="96" height="26" rx="5" fill="#F4F1E9" stroke="#E2DED2"/>
+            <text x="34" y="59">群聊消息</text>
+            <rect x="24" y="76" width="96" height="26" rx="5" fill="#F4F1E9" stroke="#E2DED2"/>
+            <text x="34" y="93">PR 评论</text>
+            <rect x="24" y="110" width="96" height="26" rx="5" fill="#F4F1E9" stroke="#E2DED2"/>
+            <text x="34" y="127">CI 结果</text>
+            <rect x="24" y="144" width="96" height="26" rx="5" fill="#F4F1E9" stroke="#E2DED2"/>
+            <text x="34" y="161">邮件 / 日程</text>
+          </g>
+
+          <!-- filter -->
+          <text x="160" y="30" font-family="monospace" font-size="10" fill="#6B7280" letter-spacing="1.5">GATE</text>
+          <rect x="158" y="60" width="52" height="92" rx="6" fill="#fff" stroke="#E2DED2" stroke-dasharray="3 3"/>
+          <text x="168" y="96" font-family="monospace" font-size="9" fill="#6B7280">fast</text>
+          <text x="166" y="110" font-family="monospace" font-size="9" fill="#6B7280">path</text>
+          <path d="M120 55 H150" stroke="#CFCAB9" marker-end="url(#ar)"/>
+          <path d="M120 89 H150" stroke="#CFCAB9" marker-end="url(#ar)"/>
+          <path d="M120 123 H150" stroke="#CFCAB9" marker-end="url(#ar)"/>
+          <path d="M120 157 H150" stroke="#CFCAB9" marker-end="url(#ar)"/>
+
+          <!-- router -->
+          <circle cx="300" cy="210" r="72" fill="url(#glow)"/>
+          <circle cx="300" cy="210" r="44" fill="#3F5BF6"/>
+          <text x="300" y="205" text-anchor="middle" font-family="monospace" font-size="13" fill="#fff" font-weight="700">ROUTER</text>
+          <text x="300" y="222" text-anchor="middle" font-family="monospace" font-size="8.5" fill="#C9D2FF">只派发 · 不执行</text>
+          <path d="M210 106 L276 178" stroke="#CFCAB9" marker-end="url(#ar)"/>
+
+          <!-- workers -->
+          <g>
+            <rect x="392" y="96" width="104" height="62" rx="7" fill="#fff" stroke="#3F5BF6" stroke-width="1.4"/>
+            <text x="402" y="118" font-family="monospace" font-size="9.5" fill="#3F5BF6" font-weight="700">WORKER 01</text>
+            <text x="402" y="133" font-family="monospace" font-size="8.5" fill="#6B7280">isolation · cwd</text>
+            <rect x="402" y="140" width="70" height="5" rx="2.5" fill="#E2DED2"/>
+            <rect x="402" y="140" width="46" height="5" rx="2.5" fill="#3F5BF6"/>
+
+            <rect x="392" y="178" width="104" height="62" rx="7" fill="#fff" stroke="#3F5BF6" stroke-width="1.4"/>
+            <text x="402" y="200" font-family="monospace" font-size="9.5" fill="#3F5BF6" font-weight="700">WORKER 02</text>
+            <text x="402" y="215" font-family="monospace" font-size="8.5" fill="#6B7280">isolation · cwd</text>
+            <rect x="402" y="222" width="70" height="5" rx="2.5" fill="#E2DED2"/>
+            <rect x="402" y="222" width="24" height="5" rx="2.5" fill="#3F5BF6"/>
+
+            <rect x="392" y="260" width="104" height="62" rx="7" fill="#fff" stroke="#E2DED2"/>
+            <text x="402" y="282" font-family="monospace" font-size="9.5" fill="#6B7280" font-weight="700">WORKER 03</text>
+            <text x="402" y="297" font-family="monospace" font-size="8.5" fill="#6B7280">idle · 空槽</text>
+          </g>
+          <path d="M340 186 L384 130" stroke="#3F5BF6" stroke-width="1.2" marker-end="url(#ar)" opacity=".6"/>
+          <path d="M344 210 H384" stroke="#3F5BF6" stroke-width="1.2" marker-end="url(#ar)" opacity=".6"/>
+          <path d="M340 234 L384 286" stroke="#CFCAB9" stroke-dasharray="3 3" marker-end="url(#ar)"/>
+
+          <!-- moving packets -->
+          <circle r="4" fill="#E0592F">
+            <animateMotion dur="3.2s" repeatCount="indefinite" path="M120 89 H150 L208 130 Q260 160 276 186"/>
+          </circle>
+          <circle r="3.5" fill="#3F5BF6" opacity=".85">
+            <animateMotion dur="2.6s" repeatCount="indefinite" begin=".4s" path="M344 210 H384"/>
+          </circle>
+          <circle r="3.5" fill="#3F5BF6" opacity=".85">
+            <animateMotion dur="3.4s" repeatCount="indefinite" begin="1.2s" path="M340 186 Q360 160 384 130"/>
+          </circle>
+
+          <!-- state layer -->
+          <rect x="24" y="330" width="472" height="52" rx="7" fill="#F4F1E9" stroke="#E2DED2"/>
+          <text x="38" y="352" font-family="monospace" font-size="9.5" fill="#3D434D" font-weight="700">STATE · SQLite</text>
+          <text x="38" y="368" font-family="monospace" font-size="8.5" fill="#6B7280">trigger / ticket / thread / decision / effect</text>
+          <path d="M300 254 V330" stroke="#CFCAB9" stroke-dasharray="2 4"/>
+          <text x="310" y="300" font-family="monospace" font-size="8" fill="#6B7280">persist</text>
+
+          <!-- watchdog -->
+          <g transform="translate(400,392)">
+            <rect x="0" y="0" width="96" height="20" rx="4" fill="#E2F4EC" stroke="#BFE3D3"/>
+            <circle cx="10" cy="10" r="3" fill="#12855C"><animate attributeName="opacity" values="1;.2;1" dur="1.6s" repeatCount="indefinite"/></circle>
+            <text x="20" y="13.5" font-family="monospace" font-size="8.5" fill="#12855C">WATCHDOG</text>
+          </g>
+          <text x="24" y="410" font-family="monospace" font-size="8" fill="#9CA3AF">FIG.0 · 五个模块，一条数据流</text>
+        </svg>
+        <div class="fig-cap"><span>FIG.0 — Router 只决策，Worker 只执行</span><span>MIT / dsh-superagent</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH01 ============ -->
+<section class="sec" id="ch01">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-no">01 / BOTTLENECK</div>
+      <div>
+        <div class="sec-kicker">问题的起点</div>
+        <h2>单任务的上限是模型，<br>多任务的上限是你</h2>
+        <p class="sec-sub">
+          过去一年，Coding Agent 已经证明模型能用工具解决复杂问题，人的介入在不断后移。
+          但主流 Agent 仍然以「一次会话」为工作单位：不同会话彼此独立，你要并行推进，
+          就得自己切换、自己记住前情、自己搬运上下文。
+        </p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="reveal">
+        <p>
+          DeepSeek Harness 团队给出的观察很朴素：<b>一个人通常只能同时跟进 3 到 5 个活跃会话。</b>
+          超过这条线，你的时间不是花在思考上，而是花在「这个窗口进行到哪了」上。
+        </p>
+        <p>
+          于是出现一个结构性矛盾：AI 越能干，你越忙。你打开五六个窗口，
+          每个里面都有一个 AI 在干活，而你成了那个负责调度、切上下文、判断优先级的 CPU ——
+          一个只有单核、还会累的 CPU。
+        </p>
+        <div class="quote">
+          模型能力决定单任务的上限，人的注意力决定多任务的上限。
+          <cite>— Exploring Super-agent Design 的核心判断</cite>
+        </div>
+      </div>
+      <div class="card reveal">
+        <h4>为什么在单会话上打补丁没用</h4>
+        <ul class="notes">
+          <li><span class="tag">阻塞</span><div><b>同步阻塞。</b>一个长测试跑十分钟，这十分钟里你没法给它新指令。</div></li>
+          <li><span class="tag">污染</span><div><b>上下文串味。</b>一个任务的日志越堆越多，另一个任务的判断精度跟着下降。</div></li>
+          <li><span class="tag">停机</span><div><b>设备即生命周期。</b>笔记本合上，任务就停了；进程重启，会话就散了。</div></li>
+          <li><span class="tag">人力</span><div><b>靠人维护。</b>CLI、MCP、连接器能扩能力，但扩不了「谁记得住」。</div></li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 class="reveal">先亲手撞一次墙</h3>
+    <p class="reveal" style="max-width:66ch;color:var(--ink-2)">
+      下面是一个传统单会话 Agent 工作台。规则很简单：点会话卡片处理积压的消息。
+      30 秒，看看你能不能追上。绝大多数人追不上 —— 这不是设计得难，是它本来就追不上。
+    </p>
+
+    <div class="win ga-wrap reveal" id="gameA" style="margin-top:18px">
+      <div class="win-bar"><i></i><i></i><i></i><span>legacy-workbench — 5 sessions, 1 human</span></div>
+      <div class="ga-hud">
+        <div>剩余 <b id="gaTime">30.0</b> s</div>
+        <div>注意力 <b id="gaAtt">100</b> %</div>
+        <div>总积压 <b id="gaBacklog">0</b></div>
+        <div class="spacer"></div>
+        <button class="btn blue" id="gaStart" style="padding:7px 14px;font-size:12.5px">开始压力测试</button>
+        <button class="btn ghost" id="gaReset" style="padding:7px 14px;font-size:12.5px">重置</button>
+      </div>
+      <div class="ga-board" id="gaBoard">
+        <div class="ga-session" data-i="0"><div class="ga-sh"># design-review</div><div class="ga-q">等你确认接口改动</div><span class="ga-pill">0 待处理</span></div>
+        <div class="ga-session" data-i="1"><div class="ga-sh"># bug-4412</div><div class="ga-q">复现步骤贴了一半</div><span class="ga-pill">0 待处理</span></div>
+        <div class="ga-session" data-i="2"><div class="ga-sh"># ci-main</div><div class="ga-q">三个用例挂了</div><span class="ga-pill">0 待处理</span></div>
+        <div class="ga-session" data-i="3"><div class="ga-sh"># release-notes</div><div class="ga-q">草稿要你过一遍</div><span class="ga-pill">0 待处理</span></div>
+        <div class="ga-session" data-i="4"><div class="ga-sh"># 群聊 / 前端</div><div class="ga-q">有人问了个问题</div><span class="ga-pill">0 待处理</span></div>
+      </div>
+      <div class="ga-log" id="gaLog">&gt; 待启动。点上面的按钮。</div>
+      <div class="ga-over" id="gaOver">
+        <h4 id="gaOverTitle">上下文崩溃</h4>
+        <p id="gaOverText"></p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+          <button class="btn blue" id="gaAgain" style="border:0">再来一次</button>
+          <a class="btn ghost" href="#ch02" style="border:0">这不是你的问题 →</a>
+        </div>
+      </div>
+    </div>
+    <div class="fig-cap" style="border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;margin-top:-1px">
+      <span>GAME.A — 你扮演调度器，也是唯一的工作线程</span><span>难度：不可通关</span>
+    </div>
+
+    <div class="card reveal" style="margin-top:28px;background:var(--blue-soft);border-color:#C9D2FF">
+      <p style="margin:0;font-size:15.5px">
+        <b>结论：</b>瓶颈不在模型，在架构。要突破它，必须先把
+        「Agent = 一次手动会话」这个绑定拆掉 —— 而这正好是操作系统四十年前就解决过的问题。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH02 ============ -->
+<section class="sec" id="ch02">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-no">02 / CORE IDEA</div>
+      <div>
+        <div class="sec-kicker">它到底是什么</div>
+        <h2>一个跨会话、能并行、<br>会自己找活干的常驻实体</h2>
+        <p class="sec-sub">
+          Super-agent 不是更强的模型，也不是更长的上下文。它是一个系统形态：
+          用户面对的始终是一个助手，系统背后同时开着若干个互不干扰的执行单元，
+          而「会话」退回成实现细节 —— 就像你不需要知道进程被调度到哪个核上。
+        </p>
+      </div>
+    </div>
+
+    <div class="grid-2" style="align-items:center">
+      <div class="reveal">
+        <p>
+          论文给了一个很克制的定义，四个词：<b>Continuous（连续）</b>、<b>Efficient（高效）</b>、
+          <b>Proactive（主动）</b>、<b>Persistent（持久）</b>。这四个词不是形容词，是四条硬指标 ——
+          每一条都对应一个必须解决的工程问题。
+        </p>
+        <p>
+          关键的一刀切在这里：<b>把「管理模型上下文」和「管理人的项目」拆开。</b>
+          过去一个 Session 同时干这两件事，所以人被迫用 Session 来组织工作。
+          拆开之后，人只管目标和验收，调度交给系统。
+        </p>
+        <div class="quote">
+          会话成了实现细节。让用户去管理会话，是从底层 LLM API 继承下来的习惯。
+          <cite>— 论文对 Session 作为工作单位的批评</cite>
+        </div>
+      </div>
+
+      <div class="win reveal">
+        <div class="win-bar"><i></i><i></i><i></i><span>fig.1 — 工作单位从「会话」上移</span></div>
+        <svg viewBox="0 0 520 250" width="100%" style="display:block">
+          <text x="18" y="22" font-family="monospace" font-size="9.5" fill="#6B7280" letter-spacing="1">BEFORE · 你来当调度器</text>
+          <rect x="18" y="34" width="42" height="20" rx="4" fill="#14171C"/>
+          <text x="39" y="48" text-anchor="middle" font-family="monospace" font-size="9" fill="#FBFAF6">你</text>
+          <g stroke="#E0592F" stroke-width="1" fill="none" opacity=".7">
+            <path d="M60 44 C90 44 90 62 112 62"/><path d="M60 44 C90 44 90 96 112 96"/>
+            <path d="M60 44 C90 44 90 130 112 130"/><path d="M60 44 C90 44 90 164 112 164"/>
+          </g>
+          <g font-family="monospace" font-size="8.5" fill="#3D434D">
+            <rect x="112" y="54" width="100" height="17" rx="3" fill="#FDECE4" stroke="#F3C6B5"/><text x="120" y="66">session A</text>
+            <rect x="112" y="88" width="100" height="17" rx="3" fill="#FDECE4" stroke="#F3C6B5"/><text x="120" y="100">session B</text>
+            <rect x="112" y="122" width="100" height="17" rx="3" fill="#FDECE4" stroke="#F3C6B5"/><text x="120" y="134">session C</text>
+            <rect x="112" y="156" width="100" height="17" rx="3" fill="#FDECE4" stroke="#F3C6B5"/><text x="120" y="168">session D</text>
+          </g>
+          <text x="112" y="196" font-family="monospace" font-size="8" fill="#E0592F">↑ 上下文靠你搬运，状态靠你记住</text>
+
+          <line x1="18" y1="212" x2="502" y2="212" stroke="#E2DED2" stroke-dasharray="3 3"/>
+
+          <text x="290" y="22" font-family="monospace" font-size="9.5" fill="#3F5BF6" letter-spacing="1">AFTER · 系统当调度器</text>
+          <rect x="290" y="34" width="42" height="20" rx="4" fill="#14171C"/>
+          <text x="311" y="48" text-anchor="middle" font-family="monospace" font-size="9" fill="#FBFAF6">你</text>
+          <path d="M332 44 H356" stroke="#3F5BF6" stroke-width="1.2"/>
+          <rect x="356" y="32" width="58" height="24" rx="4" fill="#3F5BF6"/>
+          <text x="385" y="47" text-anchor="middle" font-family="monospace" font-size="8.5" fill="#fff">ROUTER</text>
+          <g stroke="#3F5BF6" stroke-width="1" fill="none" opacity=".55">
+            <path d="M414 44 C432 44 432 62 448 62"/><path d="M414 44 C432 44 432 96 448 96"/><path d="M414 44 C432 44 432 130 448 130"/>
+          </g>
+          <g font-family="monospace" font-size="8" fill="#3F5BF6">
+            <rect x="448" y="54" width="54" height="17" rx="3" fill="#E8EBFF" stroke="#C9D2FF"/><text x="454" y="66">W1</text>
+            <rect x="448" y="88" width="54" height="17" rx="3" fill="#E8EBFF" stroke="#C9D2FF"/><text x="454" y="100">W2</text>
+            <rect x="448" y="122" width="54" height="17" rx="3" fill="#E8EBFF" stroke="#C9D2FF"/><text x="454" y="134">W3</text>
+          </g>
+          <text x="356" y="170" font-family="monospace" font-size="8" fill="#6B7280">你只看到「一个助手」</text>
+          <text x="356" y="184" font-family="monospace" font-size="8" fill="#6B7280">背后开了几个会话由系统决定</text>
+        </svg>
+        <div class="fig-cap"><span>FIG.1 — 调度与控制平面从人上移到系统</span><span>based on 001-domain</span></div>
+      </div>
+    </div>
+
+    <h3 class="reveal">四个特征，四道工程题</h3>
+    <div class="grid-4" style="margin-top:16px">
+      <div class="trait reveal">
+        <div class="fig">
+          <svg viewBox="0 0 130 70" width="100%" height="70">
+            <line x1="10" y1="35" x2="120" y2="35" stroke="#3F5BF6" stroke-width="1.6" stroke-dasharray="4 4">
+              <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="1.4s" repeatCount="indefinite"/>
+            </line>
+            <g fill="#fff" stroke="#3F5BF6" stroke-width="1.2">
+              <circle cx="22" cy="35" r="7"/><rect x="52" y="28" width="14" height="14" rx="3"/>
+              <rect x="82" y="28" width="14" height="14" rx="3"/><circle cx="112" cy="35" r="7"/>
+            </g>
+            <g font-family="monospace" font-size="6" fill="#6B7280" text-anchor="middle">
+              <text x="22" y="55">IM</text><text x="59" y="55">PR</text><text x="89" y="55">CI</text><text x="112" y="55">MAIL</text>
+            </g>
+          </svg>
+        </div>
+        <h4>连续 <span>CONTINUOUS</span></h4>
+        <p>群聊里定方案 A，PR 评论里改成 B，它跟得上。不用你复述前情。</p>
+        <span class="os-tag">↔ 单一地址空间</span>
+      </div>
+
+      <div class="trait reveal">
+        <div class="fig">
+          <svg viewBox="0 0 130 70" width="100%" height="70">
+            <g stroke="#E2DED2" stroke-width="1">
+              <line x1="14" y1="22" x2="116" y2="22"/><line x1="14" y1="40" x2="116" y2="40"/><line x1="14" y1="58" x2="116" y2="58"/>
+            </g>
+            <rect x="0" y="17" width="16" height="10" rx="2" fill="#3F5BF6">
+              <animate attributeName="x" values="10;100;10" dur="2.8s" repeatCount="indefinite"/>
+            </rect>
+            <rect x="0" y="35" width="16" height="10" rx="2" fill="#3F5BF6" opacity=".75">
+              <animate attributeName="x" values="90;20;90" dur="3.4s" repeatCount="indefinite"/>
+            </rect>
+            <rect x="0" y="53" width="16" height="10" rx="2" fill="#3F5BF6" opacity=".5">
+              <animate attributeName="x" values="30;80;30" dur="2.2s" repeatCount="indefinite"/>
+            </rect>
+          </svg>
+        </div>
+        <h4>高效 <span>EFFICIENT</span></h4>
+        <p>多个复杂任务同时推进，一条耗时任务不阻塞你发下一条指令。</p>
+        <span class="os-tag">↔ 多进程并发</span>
+      </div>
+
+      <div class="trait reveal">
+        <div class="fig">
+          <svg viewBox="0 0 130 70" width="100%" height="70">
+            <circle cx="65" cy="35" r="26" fill="none" stroke="#E2DED2"/>
+            <circle cx="65" cy="35" r="26" fill="none" stroke="#12855C" stroke-width="1.2" stroke-dasharray="40 200">
+              <animate attributeName="stroke-dashoffset" from="40" to="-200" dur="3s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="65" cy="35" r="2.5" fill="#12855C"/>
+            <circle cx="88" cy="26" r="3.5" fill="#E0592F"><animate attributeName="opacity" values="1;.3;1" dur="1.8s" repeatCount="indefinite"/></circle>
+            <circle cx="46" cy="48" r="2.5" fill="#CFCAB9"/>
+            <circle cx="78" cy="52" r="2.5" fill="#CFCAB9"/>
+            <text x="65" y="69" text-anchor="middle" font-family="monospace" font-size="6.5" fill="#6B7280">SCAN</text>
+          </svg>
+        </div>
+        <h4>主动 <span>PROACTIVE</span></h4>
+        <p>持续观察环境事件，值得处理才行动；不需要的时候保持安静。</p>
+        <span class="os-tag">↔ 中断 + 过滤器</span>
+      </div>
+
+      <div class="trait reveal">
+        <div class="fig">
+          <svg viewBox="0 0 130 70" width="100%" height="70">
+            <rect x="34" y="8" width="62" height="22" rx="5" fill="#fff" stroke="#3F5BF6" stroke-width="1.2"/>
+            <text x="65" y="22" text-anchor="middle" font-family="monospace" font-size="6" fill="#3F5BF6">CLOUD LOOP</text>
+            <rect x="14" y="44" width="44" height="18" rx="3" fill="none" stroke="#6B7280" stroke-dasharray="3 2"/>
+            <text x="36" y="56" text-anchor="middle" font-family="monospace" font-size="6" fill="#6B7280">LAPTOP OFF</text>
+            <line x1="65" y1="30" x2="65" y2="44" stroke="#E2DED2" stroke-dasharray="2 3"/>
+            <path d="M80 44 h34" stroke="#12855C" stroke-width="1.2"/>
+            <circle cx="97" cy="44" r="3" fill="#12855C"><animate attributeName="r" values="2.5;4;2.5" dur="1.6s" repeatCount="indefinite"/></circle>
+            <text x="97" y="60" text-anchor="middle" font-family="monospace" font-size="6" fill="#12855C">ALIVE</text>
+          </svg>
+        </div>
+        <h4>持久 <span>PERSISTENT</span></h4>
+        <p>设备离线也不停，进程挂了能自己恢复。状态比进程活得久。</p>
+        <span class="os-tag">↔ 存算分离 + 看门狗</span>
+      </div>
+    </div>
+
+    <div class="card reveal" style="margin-top:30px">
+      <h4>最不性感、也最重要的一点：它不发明理论</h4>
+      <p style="margin-bottom:0;font-size:14.5px;color:var(--ink-2)">
+        团队自己说得很清楚：这不是一套全新的理论。调度、缓存、隔离、快慢路径、存算分离、看门狗，
+        全是操作系统和分布式系统里被验证过几十年的东西。它做的事情是<b>重新组合</b> ——
+        把「怎么让多个任务在有限资源上互不干扰地推进」这件事，从人的脑子里搬回机器里。
+        所以你在这套架构里看到的每一块，几乎都能在 OS 教材里找到原型。这也是下面那张对照表的由来。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH03 ============ -->
+<section class="sec" id="ch03">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-no">03 / MAPPING</div>
+      <div>
+        <div class="sec-kicker">核心对照</div>
+        <h2>十二张卡，看懂它在抄谁</h2>
+        <p class="sec-sub">
+          这套架构最值得学的地方，不是某个模块，而是「遇到并发、隔离、状态、故障时，先问 OS 怎么做」。
+          下面每一对都是同一道题的两种解法：左边是被验证了四十年的机制，右边是它在 Agent 里的对应物。
+          点开任意一张看细节。
+        </p>
+      </div>
+    </div>
+
+    <div class="map-toolbar reveal">
+      <div class="seg" id="viewSeg">
+        <button class="on" data-view="os">OS 视角</button>
+        <button data-view="ag">Agent 视角</button>
+      </div>
+      <span class="map-hint">两种视角只换重心，不换内容</span>
+      <button class="btn ghost" id="pairToggle" style="margin-left:auto;padding:7px 14px;font-size:12.5px">全部展开</button>
+    </div>
+
+    <div class="pairs" id="pairs">
+
+      <div class="pair reveal">
+        <div class="pair-top">
+          <div class="pair-side os">
+            <div class="lab">OS</div>
+            <div class="nm">进程调度器</div>
+            <div class="en">process scheduler</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g fill="none" stroke="#6B7280" stroke-width="1.1"><rect x="2" y="4" width="12" height="8" rx="1.5"/><rect x="2" y="15" width="12" height="8" rx="1.5"/><path d="M18 8h10M18 19h10"/><rect x="32" y="9" width="14" height="10" rx="2" fill="#E2DED2" stroke="none"/><path d="M50 14h8" stroke-dasharray="2 2"/></g></svg></div>
+          </div>
+          <div class="pair-mid">↔</div>
+          <div class="pair-side ag">
+            <div class="lab">SUPER-AGENT</div>
+            <div class="nm">Router / Worker 双层</div>
+            <div class="en">router dispatches, workers run</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#3F5BF6" stroke-width="1.1" fill="none"><circle cx="10" cy="13" r="6"/><path d="M16 10h10M16 16h10"/><rect x="28" y="4" width="14" height="8" rx="2"/><rect x="28" y="14" width="14" height="8" rx="2"/></g><circle cx="10" cy="13" r="2" fill="#3F5BF6"/></svg></div>
+          </div>
+        </div>
+        <div class="pair-body">
+          <p><b>Router 只决策，Worker 只执行。</b>Router 承接所有人类交互、维护全局上下文、判断这活派给谁；它自己不做活，甚至可以不给它 Bash 工具，跑个轻量模型就够。Worker 拿到任务后在自己的上下文里干，配上完整工具链和最强的模型，但不直接对人说话——中间过程和报错都留在里面，只把结果汇报给上层。</p>
+          <p>并发不是无限的：原型用 <b>WorkerSlots</b> 卡住同时在跑的数量，超了排队；人发来的消息可以额外占用一个保留槽，保证它永远不会排在新任务后面。</p>
+          <div class="kv"><b>收益</b><span>连续性和吞吐第一次不用二选一</span></div>
+        </div>
+      </div>
+
+      <div class="pair reveal">
+        <div class="pair-top">
+          <div class="pair-side os">
+            <div class="lab">OS</div>
+            <div class="nm">地址空间隔离</div>
+            <div class="en">address space isolation</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#6B7280" stroke-width="1.1" fill="none"><rect x="2" y="4" width="24" height="18" rx="2"/><rect x="38" y="4" width="24" height="18" rx="2"/><path d="M30 2v22" stroke-dasharray="2 2"/></g></svg></div>
+          </div>
+          <div class="pair-mid">↔</div>
+          <div class="pair-side ag">
+            <div class="lab">SUPER-AGENT</div>
+            <div class="nm">每票一个会话 + 一个目录</div>
+            <div class="en">one session, one worktree per ticket</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#3F5BF6" stroke-width="1.1" fill="none"><rect x="2" y="3" width="18" height="9" rx="2"/><rect x="2" y="15" width="18" height="9" rx="2"/><rect x="26" y="3" width="18" height="9" rx="2"/><rect x="26" y="15" width="18" height="9" rx="2"/></g></svg></div>
+          </div>
+        </div>
+        <div class="pair-body">
+          <p>每个 Ticket 开一个独立的 Session、一个独立的目录，通常用 <code>git worktree</code> 拉一份干净检出，路径按工单 ID 命名。这样一个任务几百行的执行日志、几次失败的尝试，都不会污染另一个任务的判断。</p>
+          <p>这一点比看起来重要：单会话 Agent 的能力衰减，很多时候不是模型变笨了，是上下文里塞满了上一个任务的残渣。</p>
+          <div class="kv"><b>注意</b><span>原型的隔离是「默认值」，不是安全边界（见第 08 节）</span></div>
+        </div>
+      </div>
+
+      <div class="pair reveal">
+        <div class="pair-top">
+          <div class="pair-side os">
+            <div class="lab">OS</div>
+            <div class="nm">页缓存与换页</div>
+            <div class="en">page cache · swap</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#6B7280" stroke-width="1.1" fill="none"><rect x="2" y="3" width="16" height="20" rx="2"/><rect x="24" y="8" width="16" height="10" rx="2"/><path d="M44 13h8" stroke-dasharray="2 2"/><rect x="54" y="8" width="8" height="10" rx="1"/></g></svg></div>
+          </div>
+          <div class="pair-mid">↔</div>
+          <div class="pair-side ag">
+            <div class="lab">SUPER-AGENT</div>
+            <div class="nm">Inline &amp; Spill + 链式召回</div>
+            <div class="en">context window as a cache</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#3F5BF6" stroke-width="1.1" fill="none"><rect x="2" y="4" width="26" height="18" rx="2"/><rect x="6" y="8" width="18" height="4" rx="1" fill="#3F5BF6" stroke="none"/><rect x="6" y="14" width="10" height="4" rx="1" fill="#C9D2FF" stroke="none"/><path d="M32 13h6" stroke-dasharray="2 2"/><rect x="42" y="4" width="18" height="18" rx="2" stroke-dasharray="3 2"/></g></svg></div>
+          </div>
+        </div>
+        <div class="pair-body">
+          <p>把上下文窗口当缓存用：窗口是快的、小的；SQLite 是慢的、大的。<b>Inline</b> 是把还需要的信息载进窗口；<b>Spill</b> 是把它换出去，只留一个 ID 加 50 字符的摘要桩。需要时按 ID 再走回来——这叫 <b>Chain of Recall</b>，本质就是页表的指针追逐。</p>
+          <p>局部性策略很直白：近期 Thread / Ticket 的消息留在窗口里，久远的、弱相关的换出去。原型里 Trigger 正文硬上限 4000 字符，超出就截断并给读取指针。</p>
+          <div class="kv"><b>权衡</b><span>模型 token 便宜但快，工具读取慢但准</span></div>
+        </div>
+      </div>
+
+      <div class="pair reveal">
+        <div class="pair-top">
+          <div class="pair-side os">
+            <div class="lab">OS</div>
+            <div class="nm">中断控制器</div>
+            <div class="en">interrupt controller</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><path d="M2 20h10l4-14 6 18 4-10h10" fill="none" stroke="#6B7280" stroke-width="1.2"/></svg></div>
+          </div>
+          <div class="pair-mid">↔</div>
+          <div class="pair-side ag">
+            <div class="lab">SUPER-AGENT</div>
+            <div class="nm">Trigger 事件流</div>
+            <div class="en">events, not prompts</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#3F5BF6" stroke-width="1.1" fill="none"><path d="M2 13h8"/><circle cx="14" cy="13" r="2.5"/><path d="M18 13h8"/><circle cx="30" cy="7" r="2.5"/><circle cx="30" cy="19" r="2.5"/><path d="M33 7h8M33 19h8"/><rect x="44" y="4" width="16" height="18" rx="2"/></g></svg></div>
+          </div>
+        </div>
+        <div class="pair-body">
+          <p>工作不再靠人逐条输入提示词，而是由事件触发：群聊消息、邮件与日程提醒、PR 评论、CI 运行结果。它们统一叫 <b>Trigger</b>——不可变、可幂等（同一个 Trigger 接两次只建一个 Ticket），这既是审计单位，也是「重启不重放」的保证。</p>
+          <p>平台差异被 Source 插件吃掉了：GitHub 的通知、飞书的话题消息，都被翻译成同一种 Trigger，内核不需要知道对面是哪个平台。</p>
+          <div class="kv"><b>关键</b><span>没有 @ 它，也能开始干活</span></div>
+        </div>
+      </div>
+
+      <div class="pair reveal">
+        <div class="pair-top">
+          <div class="pair-side os">
+            <div class="lab">OS</div>
+            <div class="nm">中断上半部 / 下半部</div>
+            <div class="en">top half · bottom half</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#6B7280" stroke-width="1.1" fill="none"><path d="M2 8h12l5-5v18l-5-5H2z"/><path d="M30 13h32" stroke-dasharray="1 3"/><path d="M34 20h24" stroke-dasharray="5 3"/></g></svg></div>
+          </div>
+          <div class="pair-mid">↔</div>
+          <div class="pair-side ag">
+            <div class="lab">SUPER-AGENT</div>
+            <div class="nm">Gate（代码）+ 研判（模型）</div>
+            <div class="en">fast path · slow path</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#3F5BF6" stroke-width="1.1" fill="none"><path d="M2 13h10"/><rect x="12" y="5" width="14" height="16" rx="2"/><path d="M26 9h10M26 17h10" stroke-dasharray="2 2"/><circle cx="46" cy="9" r="4"/><circle cx="46" cy="17" r="4"/></g></svg></div>
+          </div>
+        </div>
+        <div class="pair-body">
+          <p>绝大多数群聊消息不需要 Agent 介入。所以事件进来先过一层<b>确定性过滤</b>（Gate）：来源对不对、在不在白名单、是不是同一个话题、有没有 @ 到它。这一步是代码，零模型成本。</p>
+          <p>只有过了这一层的候选，才交给模型做<b>语义研判</b>（Assessment），判断这是不是真的在要它干活。便宜的判断先做、贵的判断后做——这是中断上半部和下半部的关系，也是所有高性能系统的老套路。</p>
+          <div class="kv"><b>实现</b><span>Fast Path 是代码，Slow Path 是可用 prompt 配的自然语言规则</span></div>
+        </div>
+      </div>
+
+      <div class="pair reveal">
+        <div class="pair-top">
+          <div class="pair-side os">
+            <div class="lab">OS</div>
+            <div class="nm">定向信号 / 进程间通信</div>
+            <div class="en">directed signal · IPC</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#6B7280" stroke-width="1.1" fill="none"><path d="M2 20C14 20 20 4 34 4s16 16 28 16" stroke-dasharray="0"/><rect x="20" y="12" width="10" height="10" rx="1" stroke-dasharray="2 2"/></g></svg></div>
+          </div>
+          <div class="pair-mid">↔</div>
+          <div class="pair-side ag">
+            <div class="lab">SUPER-AGENT</div>
+            <div class="nm">Thread 订阅直通</div>
+            <div class="en">subscription pass-through</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#3F5BF6" stroke-width="1.1" fill="none"><circle cx="8" cy="13" r="5"/><rect x="30" y="7" width="12" height="12" rx="2"/><path d="M13 13h7" stroke-dasharray="2 2"/><path d="M8 8c0-6 34-6 34 5" stroke-width="1.4"/></g></svg></div>
+          </div>
+        </div>
+        <div class="pair-body">
+          <p>Worker 接手一个 PR 之后，会<b>订阅</b>这个 Thread。之后这条 Thread 上的新评论直接投给它，不再经过 Router 转发。这既省调度开销，也省一次上下文重建。</p>
+          <p>论文做了消融，把这个机制关掉：Router 的决策次数涨了大约 <b>30%</b>，read-cache token 从 <b>23.23M</b> 涨到 <b>31.77M</b>，多了约 <b>37%</b>。所以直通不是锦上添花，它直接改变了成本结构。</p>
+          <div class="kv"><b>一句话</b><span>谁负责这件事，后续信号就直投谁</span></div>
+        </div>
+      </div>
+
+      <div class="pair reveal">
+        <div class="pair-top">
+          <div class="pair-side os">
+            <div class="lab">OS</div>
+            <div class="nm">fork / 子进程</div>
+            <div class="en">fork · exec</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#6B7280" stroke-width="1.1" fill="none"><circle cx="8" cy="13" r="3"/><path d="M11 13c8 0 8-8 16-8s8 8 16 8M11 13c8 0 8 8 16 8s8-8 16-8"/></g></svg></div>
+          </div>
+          <div class="pair-mid">↔</div>
+          <div class="pair-side ag">
+            <div class="lab">SUPER-AGENT</div>
+            <div class="nm">Worker 派生子 Agent</div>
+            <div class="en">subagents, transparent upward</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#3F5BF6" stroke-width="1.1" fill="none"><rect x="2" y="9" width="12" height="9" rx="2"/><path d="M14 13h8"/><rect x="22" y="3" width="12" height="7" rx="1.5"/><rect x="22" y="13" width="12" height="7" rx="1.5"/><rect x="40" y="3" width="12" height="7" rx="1.5"/><rect x="40" y="13" width="12" height="7" rx="1.5"/></g></svg></div>
+          </div>
+        </div>
+        <div class="pair-body">
+          <p>Worker 内部可以再开子 Agent，把一个大任务拆开做。这一层对 Router 完全透明——Router 只负责<b>任务之间</b>的派发，不负责<b>任务内部</b>的分解。</p>
+          <p>这也是它和 Agent Teams 的区别：Teams 分解的是一个紧耦合的复杂任务，Lead 的协调很重；Super-agent 的 Router 把「团队负责人」压缩成只对外交互和派单，于是同一个模式可以在任务间无限复制。</p>
+          <div class="kv"><b>实验</b><span>单会话 Agent 在 5 次中性提示下，一次都没有主动委派子 Agent</span></div>
+        </div>
+      </div>
+
+      <div class="pair reveal">
+        <div class="pair-top">
+          <div class="pair-side os">
+            <div class="lab">OS</div>
+            <div class="nm">作业控制</div>
+            <div class="en">job control · SIGSTOP / fg / bg</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#6B7280" stroke-width="1.1" fill="none"><rect x="8" y="4" width="6" height="18" rx="1"/><rect x="24" y="4" width="6" height="18" rx="1"/><path d="M38 13h20" stroke-dasharray="2 3"/></g></svg></div>
+          </div>
+          <div class="pair-mid">↔</div>
+          <div class="pair-side ag">
+            <div class="lab">SUPER-AGENT</div>
+            <div class="nm">异步 ReAct（start / stop）</div>
+            <div class="en">full-duplex interaction</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#3F5BF6" stroke-width="1.1" fill="none"><path d="M2 8h22" /><path d="M2 18h34" stroke-dasharray="2 2"/><circle cx="50" cy="8" r="3" fill="#3F5BF6" stroke="none"/><path d="M54 18h6"/></g></svg></div>
+          </div>
+        </div>
+        <div class="pair-body">
+          <p>经典 ReAct 会阻塞在工具执行上：命令跑十分钟，这十分钟里模型什么都干不了，也听不见你说话。改成<b>全双工</b>之后，工具调用变成异步的 <code>start()</code> / <code>stop()</code>：模型立刻拿到一个「已启动」的句柄继续思考，工具完成时作为一条新事件回来；长命令也可以中途喊停。</p>
+          <p>新输入在当前推理步之后就被处理，不用等后台工具跑完。这个机制在 DeepSeek Harness 里已经实现，但<b>默认没有打开</b>。</p>
+          <div class="kv"><b>体验差异</b><span>以前是「提交-等待」，现在像「说话-打断」</span></div>
+        </div>
+      </div>
+
+      <div class="pair reveal">
+        <div class="pair-top">
+          <div class="pair-side os">
+            <div class="lab">OS / 分布式</div>
+            <div class="nm">存算分离</div>
+            <div class="en">compute-storage separation</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#6B7280" stroke-width="1.1" fill="none"><rect x="6" y="3" width="24" height="8" rx="2"/><rect x="6" y="15" width="24" height="8" rx="2"/><path d="M36 7h8M36 19h8"/><rect x="46" y="3" width="14" height="20" rx="2"/><path d="M50 8h6M50 12h6M50 16h6"/></g></svg></div>
+          </div>
+          <div class="pair-mid">↔</div>
+          <div class="pair-side ag">
+            <div class="lab">SUPER-AGENT</div>
+            <div class="nm">计算 / 状态 / 执行 三层</div>
+            <div class="en">cloud loop · sqlite · BYOM daemon</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#3F5BF6" stroke-width="1.1" fill="none"><rect x="4" y="3" width="16" height="6" rx="1.5"/><rect x="4" y="11" width="16" height="6" rx="1.5"/><rect x="4" y="19" width="16" height="5" rx="1.5"/><path d="M20 6h6M20 14h6M20 21h6" stroke-dasharray="1 2"/><rect x="28" y="3" width="14" height="21" rx="2"/></g></svg></div>
+          </div>
+        </div>
+        <div class="pair-body">
+          <p>三层各管一件事：<b>计算</b>是无状态的 Agent Loop，跑在云容器里，挂了重启就行；<b>状态</b>是独立的持久库（原型用 SQLite），是唯一事实源；<b>执行</b>是本地机器上的一个轻量 daemon（BYOM，Bring Your Own Machine），只负责执行命令，不做任何推理。</p>
+          <p>所以合上笔记本，任务只是<b>暂停</b>，不是销毁；换台机器接着跑也行。代价是引入网络延迟，并且状态层变成必须做高可用的关键单点。</p>
+          <div class="kv"><b>对应</b><span>无状态计算节点 + 远程块存储 + 本地设备</span></div>
+        </div>
+      </div>
+
+      <div class="pair reveal">
+        <div class="pair-top">
+          <div class="pair-side os">
+            <div class="lab">OS / 硬件</div>
+            <div class="nm">看门狗定时器</div>
+            <div class="en">watchdog timer</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#6B7280" stroke-width="1.2" fill="none"><path d="M2 14h8l3-8 4 16 3-8h6l3-6 4 12 3-6h6"/></g></svg></div>
+          </div>
+          <div class="pair-mid">↔</div>
+          <div class="pair-side ag">
+            <div class="lab">SUPER-AGENT</div>
+            <div class="nm">独立的 Watchdog 会话</div>
+            <div class="en">fault detection outside the faulty part</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#3F5BF6" stroke-width="1.1" fill="none"><rect x="4" y="4" width="26" height="18" rx="2"/><path d="M34 13h6" stroke-dasharray="2 2"/><circle cx="48" cy="13" r="7"/><circle cx="48" cy="13" r="2.5" fill="#3F5BF6" stroke="none"/></g></svg></div>
+          </div>
+        </div>
+        <div class="pair-body">
+          <p>原则只有一句：<b>故障检测不能跑在故障组件内部。</b>所以 Watchdog 是一个独立的会话/进程，不是 Router 里的一段代码。它从两个面看：基础设施面（进程还活着吗、队列积压吗）走确定性判断；语义面（这个 Worker 是不是在原地打转、目标漂移了没有）走独立的模型判断。</p>
+          <p>心跳的含义也很具体：Worker 必须汇报<b>实质性进展</b>。反复调用同一个工具、结果没有变化，就算卡住。补救措施分等级——硬故障自动重试，语义软故障先告警，破坏性操作必须人确认。</p>
+          <div class="kv"><b>原型现状</b><span>只有心跳板和副作用重试，独立巡逻会话尚未实现</span></div>
+        </div>
+      </div>
+
+      <div class="pair reveal">
+        <div class="pair-top">
+          <div class="pair-side os">
+            <div class="lab">CPU</div>
+            <div class="nm">投机执行</div>
+            <div class="en">speculative execution</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#6B7280" stroke-width="1.1" fill="none"><path d="M2 13h14"/><path d="M16 13c8 0 8-8 16-8h14" stroke-dasharray="3 2"/><path d="M16 13c8 0 8 8 16 8h14"/></g></svg></div>
+          </div>
+          <div class="pair-mid">↔</div>
+          <div class="pair-side ag">
+            <div class="lab">SUPER-AGENT</div>
+            <div class="nm">静默复现并修复</div>
+            <div class="en">silent reproduce &amp; fix</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#3F5BF6" stroke-width="1.1" fill="none"><circle cx="12" cy="13" r="6"/><path d="M16 17l6 6"/><path d="M28 13h10" stroke-dasharray="2 2"/><path d="M42 8l6 5-6 5"/></g></svg></div>
+          </div>
+        </div>
+        <div class="pair-body">
+          <p>有人在群里反馈一个 bug，Agent 先在后台复现、定位、试一个简单修复。<b>确认问题存在、且修复足够简单，才提交</b>；否则保持安静，不打扰任何人。</p>
+          <p>这是把 CPU 的投机执行搬到了 Agent 上：结果会不会被采用还不确定，但先算的成本很低，算对了就省掉一整轮往返。个人助理场景同理——收到会议邀请，先把日程核对、资料整理、回复草稿都备好。</p>
+          <div class="kv"><b>前提</b><span>失败必须无副作用，所以「只记录不提交」是默认档</span></div>
+        </div>
+      </div>
+
+      <div class="pair reveal">
+        <div class="pair-top">
+          <div class="pair-side os">
+            <div class="lab">OS</div>
+            <div class="nm">系统调用与权限</div>
+            <div class="en">syscall · capability</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#6B7280" stroke-width="1.1" fill="none"><circle cx="34" cy="9" r="5"/><path d="M34 14v9M34 18h6M34 21h4"/><path d="M2 13h18" stroke-dasharray="3 2"/></g></svg></div>
+          </div>
+          <div class="pair-mid">↔</div>
+          <div class="pair-side ag">
+            <div class="lab">SUPER-AGENT</div>
+            <div class="nm">Mandate 授权票据</div>
+            <div class="en">a unit of authorized work</div>
+            <div class="ic"><svg viewBox="0 0 64 26" width="64" height="26"><g stroke="#3F5BF6" stroke-width="1.1" fill="none"><rect x="6" y="3" width="22" height="20" rx="2"/><path d="M10 8h14M10 12h14M10 16h8"/><circle cx="44" cy="13" r="6"/><path d="M50 13h10M56 13v5"/></g></svg></div>
+          </div>
+        </div>
+        <div class="pair-body">
+          <p>一次「接单」不只是说一句好，而是签发一张 <b>Mandate</b>：策略版本、工作范围、授权强度（明确要求还是推断出来的）、命中的规则、发起人在该平台上的身份。它不可变——范围要扩大，就得开新工单。</p>
+          <p>撤销权只在人手里：人喊停，授权作废；策略变了，授权失效。工单结束不等于授权结束；工单要恢复，必须按<b>当前</b>策略重新校验一遍。</p>
+          <div class="kv"><b>诚实说</b><span>原型里这道边界只到调度器，Worker 的 shell 仍以操作员身份运行</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="map-legend">
+      <span><i style="background:#F4F1E9;border:1px solid #E2DED2"></i>操作系统侧</span>
+      <span><i style="background:#E8EBFF;border:1px solid #C9D2FF"></i>Super-agent 侧</span>
+      <span style="color:#9CA3AF">↔ 不是比喻，是同一类问题的同一类解法</span>
+    </div>
+
+    <h3 class="reveal">还有三条，藏在实现里</h3>
+    <div class="grid-3" style="margin-top:14px">
+      <div class="card reveal" style="padding:18px">
+        <h4>日志 / journaling → Effects 队列</h4>
+        <p class="small" style="margin:0;color:var(--ink-2)">所有对外副作用先入持久队列，提交后才执行，失败指数退避，保证至少一次投递。进程崩了，欠的账还在。</p>
+      </div>
+      <div class="card reveal" style="padding:18px">
+        <h4>设备驱动 → Source 插件</h4>
+        <p class="small" style="margin:0;color:var(--ink-2)">GitHub、飞书各自实现一套「怎么读事件、怎么回消息」，内核只认 Trigger 和 Channel。换平台不用改调度。</p>
+      </div>
+      <div class="card reveal" style="padding:18px">
+        <h4>单一写者 / 内核态 → Engine</h4>
+        <p class="small" style="margin:0;color:var(--ink-2)">Trigger、Thread、Ticket、Decision 只有一个写入者，全部命令走同一个事务入口。状态只有一个人能改，才不会互相踩。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH04 ============ -->
+<section class="sec" id="ch04">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-no">04 / ANATOMY</div>
+      <div>
+        <div class="sec-kicker">把图拆开</div>
+        <h2>一条事件，怎么变成一次交付</h2>
+        <p class="sec-sub">
+          五个模块不是并列的五个功能，是一条链路上的五个位置。事件从左边进来，
+          经过两次判断变成一张有授权的工单，再由一个隔离的执行器干完，
+          最后从原路回到说话的地方。中间所有状态落在右边那个库里，外面还有一个不参与工作的旁观者。
+        </p>
+      </div>
+    </div>
+
+    <div class="arch-box reveal">
+      <svg viewBox="0 0 1160 492" width="100%">
+        <defs>
+          <marker id="a2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#CFCAB9"/></marker>
+          <marker id="a3" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#3F5BF6"/></marker>
+          <marker id="a4" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#6B4EE6"/></marker>
+        </defs>
+
+        <g font-family="monospace" font-size="9" fill="#9CA3AF" letter-spacing="1.2">
+          <text x="16" y="30">01 · SOURCES</text>
+          
+        </g>
+
+        <!-- sources -->
+        <g font-family="monospace" font-size="10">
+          <g class="node"><rect x="16" y="40" width="150" height="44" rx="5" fill="#fff" stroke="#E2DED2"/><text x="28" y="59" fill="#14171C">飞书 / 群聊</text><text x="28" y="73" fill="#9CA3AF" font-size="8.6">im · topic</text></g>
+          <g class="node"><rect x="16" y="92" width="150" height="44" rx="5" fill="#fff" stroke="#E2DED2"/><text x="28" y="111" fill="#14171C">GitHub</text><text x="28" y="125" fill="#9CA3AF" font-size="8.6">issue · pr · ci</text></g>
+          <g class="node"><rect x="16" y="144" width="150" height="44" rx="5" fill="#fff" stroke="#E2DED2"/><text x="28" y="163" fill="#14171C">邮件 / 日程</text><text x="28" y="177" fill="#9CA3AF" font-size="8.6">mail · calendar</text></g>
+          <g class="node"><rect x="16" y="196" width="150" height="44" rx="5" fill="#fff" stroke="#E2DED2"/><text x="28" y="215" fill="#14171C">自定义 Source</text><text x="28" y="229" fill="#9CA3AF" font-size="8.6">plugin</text></g>
+        </g>
+        <g stroke="#CFCAB9" marker-end="url(#a2)" fill="none">
+          <path d="M166 62 H188"/><path d="M166 114 H188"/><path d="M166 166 H188"/><path d="M166 218 H188"/>
+        </g>
+
+        <!-- gate -->
+        <g class="node">
+          <rect x="196" y="40" width="76" height="204" rx="6" fill="#F4F1E9" stroke="#CFCAB9"/>
+          <text x="234" y="88" text-anchor="middle" font-family="monospace" font-size="11" fill="#14171C" font-weight="700">GATE</text>
+          <text x="234" y="104" text-anchor="middle" font-family="monospace" font-size="8.6" fill="#6B7280">确定性</text>
+          <line x1="210" y1="114" x2="258" y2="114" stroke="#CFCAB9"/>
+          <text x="234" y="132" text-anchor="middle" font-family="monospace" font-size="9.2" fill="#3D434D">白名单</text>
+          <text x="234" y="147" text-anchor="middle" font-family="monospace" font-size="9.2" fill="#3D434D">来源</text>
+          <text x="234" y="162" text-anchor="middle" font-family="monospace" font-size="9.2" fill="#3D434D">身份</text>
+          <text x="234" y="177" text-anchor="middle" font-family="monospace" font-size="9.2" fill="#3D434D">去重</text>
+          <text x="234" y="212" text-anchor="middle" font-family="monospace" font-size="9.2" fill="#E0592F">代码</text>
+          <text x="234" y="227" text-anchor="middle" font-family="monospace" font-size="9.2" fill="#E0592F">0 token</text>
+        </g>
+        <path d="M272 142 H298" stroke="#CFCAB9" marker-end="url(#a2)" fill="none"/>
+
+        <!-- assess -->
+        <g class="node">
+          <rect x="306" y="82" width="112" height="120" rx="6" fill="#fff" stroke="#3F5BF6" stroke-width="1.5"/>
+          <text x="362" y="104" text-anchor="middle" font-family="monospace" font-size="11" fill="#3F5BF6" font-weight="700">ASSESS</text>
+          <text x="362" y="119" text-anchor="middle" font-family="monospace" font-size="8.6" fill="#6B7280">语义研判</text>
+          <line x1="318" y1="128" x2="406" y2="128" stroke="#E2DED2"/>
+          <text x="362" y="146" text-anchor="middle" font-family="monospace" font-size="9.2" fill="#3D434D">要它干活吗</text>
+          <text x="362" y="161" text-anchor="middle" font-family="monospace" font-size="9.2" fill="#3D434D">谁在要</text>
+          <text x="362" y="176" text-anchor="middle" font-family="monospace" font-size="9.2" fill="#3D434D">做到哪一步</text>
+          <text x="362" y="194" text-anchor="middle" font-family="monospace" font-size="9.2" fill="#E0592F">模型 · 贵</text>
+        </g>
+        <path d="M418 142 H436" stroke="#CFCAB9" marker-end="url(#a2)" fill="none"/>
+
+        <!-- decision -->
+        <g class="node">
+          <circle cx="470" cy="142" r="30" fill="#FDECE4" stroke="#E0592F" stroke-width="1.4"/>
+          <text x="470" y="139" text-anchor="middle" font-family="monospace" font-size="10.2" fill="#E0592F" font-weight="700">DECIDE</text>
+          <text x="470" y="153" text-anchor="middle" font-family="monospace" font-size="8" fill="#E0592F">accept / skip</text>
+        </g>
+        <path d="M500 142 H524" stroke="#3F5BF6" marker-end="url(#a3)" fill="none" stroke-width="1.6"/>
+        <path d="M470 172 V232" stroke="#CFCAB9" stroke-dasharray="3 3" fill="none" marker-end="url(#a2)"/>
+        <text x="480" y="222" font-family="monospace" font-size="8.6" fill="#9CA3AF">ignore /</text>
+        <text x="480" y="233" font-family="monospace" font-size="8.6" fill="#9CA3AF">unavailable</text>
+
+        <!-- ticket -->
+        <g class="node">
+          <rect x="530" y="70" width="228" height="160" rx="7" fill="#fff" stroke="#3F5BF6" stroke-width="1.8"/>
+          <path d="M530 77a7 7 0 017-7h214a7 7 0 017 7v20H530z" fill="#E8EBFF"/>
+          <text x="544" y="90" font-family="monospace" font-size="10.6" fill="#3F5BF6" font-weight="700">TICKET · 已授权的工作</text>
+          <text x="544" y="116" font-family="monospace" font-size="9" fill="#6B7280">mandate</text>
+          <rect x="544" y="122" width="200" height="24" rx="3" fill="#F4F1E9" stroke="#E2DED2"/>
+          <text x="554" y="138" font-family="monospace" font-size="9" fill="#3D434D">policy v17 · scope · rules</text>
+          <text x="544" y="164" font-family="monospace" font-size="9" fill="#6B7280">assignment</text>
+          <rect x="544" y="170" width="86" height="20" rx="3" fill="#fff" stroke="#E2DED2"/>
+          <text x="552" y="184" font-family="monospace" font-size="9" fill="#3D434D">worker-01</text>
+          <text x="638" y="184" font-family="monospace" font-size="9" fill="#9CA3AF">+ inputs</text>
+          <text x="544" y="212" font-family="monospace" font-size="8.6" fill="#9CA3AF">open → ended → resume</text>
+        </g>
+
+        <!-- fanout -->
+        <path d="M234 34 V16 H644 V64" stroke="#6B4EE6" stroke-dasharray="5 3" fill="none" marker-end="url(#a4)"/>
+        <text x="262" y="13" font-family="monospace" font-size="9" fill="#6B4EE6">Subscription fan-out · 后续消息直投已订阅工单</text>
+
+        <path d="M758 142 H792" stroke="#3F5BF6" marker-end="url(#a3)" fill="none" stroke-width="1.6"/>
+        <text x="762" y="133" font-family="monospace" font-size="8.6" fill="#3F5BF6">launch</text>
+
+        <!-- executor -->
+        <g class="node">
+          <rect x="800" y="52" width="292" height="196" rx="7" fill="#FBFCFF" stroke="#3F5BF6" stroke-width="1.5" stroke-dasharray="7 4"/>
+          <text x="816" y="74" font-family="monospace" font-size="10.6" fill="#3F5BF6" font-weight="700">EXECUTOR SESSION</text>
+          <text x="816" y="88" font-family="monospace" font-size="9" fill="#9CA3AF">独立上下文 · 独立目录</text>
+          <rect x="816" y="96" width="260" height="32" rx="4" fill="#fff" stroke="#E2DED2"/>
+          <text x="826" y="110" font-family="monospace" font-size="9.2" fill="#3D434D">shell · read · write · web</text>
+          <text x="826" y="122" font-family="monospace" font-size="8.6" fill="#9CA3AF">worktree / wt-&lt;ticketId&gt;</text>
+          <rect x="816" y="134" width="260" height="32" rx="4" fill="#fff" stroke="#E2DED2"/>
+          <text x="826" y="148" font-family="monospace" font-size="9.2" fill="#3D434D">skill · job · subagent</text>
+          <text x="826" y="160" font-family="monospace" font-size="8.6" fill="#9CA3AF">可再派生子 agent，对上层透明</text>
+          <rect x="816" y="172" width="260" height="26" rx="4" fill="#FDECE4" stroke="#F3C6B5"/>
+          <text x="826" y="189" font-family="monospace" font-size="9.2" fill="#E0592F">没有 ask / display 工具</text>
+          <text x="816" y="216" font-family="monospace" font-size="9" fill="#9CA3AF">→ 结构上不能直接打扰人类</text>
+          <text x="816" y="234" font-family="monospace" font-size="8.6" fill="#9CA3AF">只把结果和阻塞问题汇报给 Router</text>
+        </g>
+
+        <!-- channel -->
+        <path d="M946 248 V306 H92 V240" stroke="#6B4EE6" stroke-dasharray="6 4" fill="none" marker-end="url(#a4)"/>
+        <text x="300" y="298" font-family="monospace" font-size="9" fill="#6B4EE6">CHANNEL · PR / 评论 / 回复，回到说话的地方</text>
+
+        <!-- state -->
+        <g class="node">
+          <rect x="290" y="340" width="470" height="80" rx="7" fill="#F4F1E9" stroke="#CFCAB9"/>
+          <text x="306" y="362" font-family="monospace" font-size="10.6" fill="#3D434D" font-weight="700">STATE · SQLite（唯一事实源）</text>
+          <text x="306" y="380" font-family="monospace" font-size="8.6" fill="#6B7280">trigger · thread · ticket · decision · assignment · effect · outbox</text>
+          <text x="306" y="396" font-family="monospace" font-size="8.6" fill="#9CA3AF">单一写者 Engine · 一次事务一个变更 · 重启从这里恢复</text>
+          <text x="306" y="411" font-family="monospace" font-size="8.6" fill="#9CA3AF">状态比进程活得久</text>
+        </g>
+        <g stroke="#CFCAB9" stroke-dasharray="2 3" fill="none">
+          <path d="M362 202 V340"/><path d="M644 230 V340"/><path d="M946 248 V340"/>
+        </g>
+
+        <!-- watchdog -->
+        <g class="node">
+          <rect x="800" y="340" width="292" height="80" rx="7" fill="#E2F4EC" stroke="#BFE3D3"/>
+          <circle cx="818" cy="360" r="4" fill="#12855C"><animate attributeName="opacity" values="1;.25;1" dur="1.5s" repeatCount="indefinite"/></circle>
+          <text x="832" y="364" font-family="monospace" font-size="10.6" fill="#12855C" font-weight="700">WATCHDOG（独立会话）</text>
+          <text x="816" y="384" font-family="monospace" font-size="8.6" fill="#3D434D">心跳 · 是否真在推进 · 重复调用 = 卡住</text>
+          <text x="816" y="400" font-family="monospace" font-size="8.6" fill="#3D434D">故障检测不跑在故障组件内部</text>
+          <text x="816" y="413" font-family="monospace" font-size="8.6" fill="#12855C">主系统挂了它还活着</text>
+        </g>
+        <path d="M800 380 H768" stroke="#12855C" stroke-dasharray="3 3" marker-end="url(#a2)" fill="none"/>
+
+        <!-- byom -->
+        <g class="node">
+          <rect x="800" y="440" width="292" height="44" rx="6" fill="#fff" stroke="#E2DED2"/>
+          <text x="814" y="457" font-family="monospace" font-size="9.6" fill="#3D434D" font-weight="700">BYOM daemon · 本地机器</text>
+          <text x="814" y="472" font-family="monospace" font-size="8.6" fill="#6B7280">只执行命令，不做推理 · 持有代码与凭证</text>
+          <path d="M946 420 V440" stroke="#CFCAB9" stroke-dasharray="2 3" marker-end="url(#a2)" fill="none"/>
+        </g>
+      </svg>
+    </div>
+    <div class="fig-cap" style="border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;margin-top:-1px">
+      <span>FIG.2 — 从 Trigger 到 Channel 的完整链路</span><span>据 001-domain / 007-architecture 重绘</span>
+    </div>
+
+    <h3 class="reveal">五个模块，各修一个洞</h3>
+    <div class="mods" style="margin-top:14px">
+      <div class="mod reveal"><div class="n">1</div><div><h4>双层架构</h4><p>修「连续性和并发二选一」。Router 保连续，Worker 保吞吐。</p></div></div>
+      <div class="mod reveal"><div class="n">2</div><div><h4>事件驱动</h4><p>修「必须有人打字」。Trigger 取代 prompt，两级过滤挡噪音。</p></div></div>
+      <div class="mod reveal"><div class="n">3</div><div><h4>面向人的交互</h4><p>修「等待感」。全双工、异步工具、回复限 100 字。</p></div></div>
+      <div class="mod reveal"><div class="n">4</div><div><h4>计算 / 状态 / 环境分离</h4><p>修「关机即停」。循环在云上，状态在库里，手在本地。</p></div></div>
+      <div class="mod reveal"><div class="n">5</div><div><h4>外部 Watchdog</h4><p>修「模型自己检查自己不可靠」。监控必须是旁观者。</p></div></div>
+    </div>
+
+    <div class="card reveal" style="margin-top:22px;background:var(--paper-2)">
+      <p style="margin:0;font-size:14px;color:var(--ink-2)">
+        <b>读图提示：</b>这张图里真正稀缺的资源不是 token，是<b>人的注意力</b>。
+        所以 Gate 放在模型之前（能不进模型就不进），Worker 不给人发消息（不能打扰），
+        回复限 100 字（必须说完就停），主动工作默认只记录不执行（先证明它值得）。
+        整套设计有一条统一的价值观：<b>用最少的人类注意力，换最大的价值。</b>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH05 ============ -->
+<section class="sec" id="ch05">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-no">05 / DISPATCH</div>
+      <div>
+        <div class="sec-kicker">上手</div>
+        <h2>现在你来当 Router</h2>
+        <p class="sec-sub">
+          Router 的活听起来简单：决定这条事件该不该处理、该派给谁。但你要同时管住三件事——
+          别让噪音占用模型、别让槽位空转、别让同一个话题反复重建上下文。
+          45 秒，看你能调度多少。
+        </p>
+      </div>
+    </div>
+
+    <div class="win gb-wrap reveal" id="gameB">
+      <div class="win-bar"><i></i><i></i><i></i><span>super-agent-router — duty shift</span></div>
+      <div class="gb-hud">
+        <div>剩余 <b id="gbTime">45</b> s</div>
+        <div>得分 <b id="gbScore">0</b></div>
+        <div>已处理 <b id="gbDone">0</b></div>
+        <div>TOKEN <b id="gbToken">0</b></div>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn blue" id="gbStart" style="padding:6px 13px;font-size:12px">开始值班</button>
+          <button class="btn ghost" id="gbReset" style="padding:6px 13px;font-size:12px">重置</button>
+        </div>
+      </div>
+      <div class="gb-main">
+        <div class="gb-queue" id="gbQueue">
+          <div class="gb-empty">等待事件流入…</div>
+        </div>
+        <div class="gb-workers" id="gbWorkers">
+          <div class="gb-worker" data-w="0"><div class="wh"><b>WORKER 01</b><span>idle</span></div><div class="wt">—</div><div class="gb-wbar"><i></i></div></div>
+          <div class="gb-worker" data-w="1"><div class="wh"><b>WORKER 02</b><span>idle</span></div><div class="wt">—</div><div class="gb-wbar"><i></i></div></div>
+          <div class="gb-worker" data-w="2"><div class="wh"><b>WORKER 03</b><span>idle</span></div><div class="wt">—</div><div class="gb-wbar"><i></i></div></div>
+          <div style="margin-top:auto;font-family:var(--mono);font-size:9px;color:var(--ink-3);line-height:1.6">
+            3 个槽位 = WorkerSlots<br>人发消息可额外占 1 个保留槽
+          </div>
+        </div>
+      </div>
+      <div class="gb-acts">
+        <button class="btn ghost" id="gbBatch" style="padding:6px 13px;font-size:12px">批处理 · 合并决策</button>
+        <span style="font-family:var(--mono);font-size:9.5px;color:var(--ink-3)">TASK→派发　FYI→过滤　LINK→直通</span>
+      </div>
+      <div class="gb-log" id="gbLog">&gt; Router 待机。点「开始值班」，你就是调度器。</div>
+      <div class="gb-toast" id="gbToast"></div>
+      <div class="ga-over" id="gbOver">
+        <h4 id="gbOverTitle">值班结束</h4>
+        <p id="gbOverText"></p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+          <button class="btn blue" id="gbAgain" style="border:0">再值一班</button>
+          <a class="btn ghost" href="#ch06" style="border:0">看上下文怎么省 →</a>
+        </div>
+      </div>
+    </div>
+    <div class="fig-cap" style="border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;margin-top:-1px">
+      <span>GAME.B — 三条规则对应三个真实机制：Gate、WorkerSlots、Thread 直通</span><span>分数不代表真实性能</span>
+    </div>
+
+    <div class="grid-3" style="margin-top:24px">
+      <div class="card reveal" style="padding:16px"><h4>FYI 为什么必须过滤</h4><p class="small" style="margin:0;color:var(--ink-2)">群里 90% 的消息跟你无关。让模型逐条判断，等于用最贵的资源做最便宜的筛除。代码先挡，模型后判。</p></div>
+      <div class="card reveal" style="padding:16px"><h4>槽位满了为什么不能硬塞</h4><p class="small" style="margin:0;color:var(--ink-2)">并发不是越多越好。每个 Worker 都占内存、占模型配额、占一份上下文预算；超了就会互相拖慢，还会让看门狗误判。</p></div>
+      <div class="card reveal" style="padding:16px"><h4>LINK 为什么省这么多</h4><p class="small" style="margin:0;color:var(--ink-2)">同一个 PR 的后续评论，直投给已经在做它的 Worker，省掉一次「重建全局上下文 + 重新判断该给谁」的完整开销。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH06 ============ -->
+<section class="sec" id="ch06">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-no">06 / MEMORY</div>
+      <div>
+        <div class="sec-kicker">缓存这一课</div>
+        <h2>上下文窗口不是仓库，是缓存</h2>
+        <p class="sec-sub">
+          一个跑了几天的 Agent，历史记录远大于窗口。绝大多数系统的做法是「截断」——
+          把最旧的扔掉，扔掉的可能正是关键约束。Super-agent 的做法是把它当页缓存管：
+          热的留在窗口，冷的换出去但留一个地址，需要时按地址追回来。
+        </p>
+      </div>
+    </div>
+
+    <div class="grid-2" style="align-items:start">
+      <div class="reveal">
+        <p>
+          <b>Inline</b> 就是把一条消息载进上下文窗口；<b>Spill</b> 是把它换出去，
+          但在窗口里留一个 50 字符的摘要桩和它的唯一 ID。模型看到这个桩，知道「有这回事」，
+          需要细节时再按 ID 去读原文。
+        </p>
+        <p>
+          <b>Chain of Recall</b> 是这套东西的关键：ID 之间互相引用，形成一张图。
+          你从一个桩跳到原文，原文里又引到另一条记录，可以一路追下去——这就是页表的指针追逐。
+          代价是每次追都是一次工具调用，比留在窗口里贵得多。
+        </p>
+        <p>
+          所以策略不是「尽量少占窗口」，而是<b>按局部性决定谁留谁走</b>：
+          当前的 Thread、正在做的 Ticket，留在窗口；三个月前的会议记录，换出去。
+          原型里的硬指标是 Trigger 正文最多 4000 字符，超出截断并给指针。
+        </p>
+        <div class="quote">
+          弱局部性会让这套机制变贵：如果你总是随机跳回很久以前的历史，
+          工具读取的开销就会盖过省下来的 token。
+          <cite>— 论文自己列出的边界</cite>
+        </div>
+      </div>
+
+      <div class="win reveal">
+        <div class="win-bar"><i></i><i></i><i></i><span>context-cache — 点消息在窗口和磁盘之间搬运</span></div>
+        <div class="ctx">
+          <div class="ctx-pane win-side">
+            <div class="pane-h"><span>CONTEXT WINDOW</span><b id="ctxCap">4 / 6</b></div>
+            <div class="ctx-slots" id="ctxWin">
+              <div class="msg" data-id="t-001"><span class="id">t-001</span><span class="tx">需求：给暗色模式加「跟随系统」开关</span><span class="sz">86</span></div>
+              <div class="msg" data-id="t-014"><span class="id">t-014</span><span class="tx">PR 评论：判断逻辑应放在设置模块</span><span class="sz">52</span></div>
+              <div class="msg" data-id="t-027"><span class="id">t-027</span><span class="tx">CI：3 个快照用例失败</span><span class="sz">41</span></div>
+              <div class="msg" data-id="t-033"><span class="id">t-033</span><span class="tx">设计稿：暗色色板 v3</span><span class="sz">28</span></div>
+            </div>
+            <div class="ctx-bar"><i id="ctxFill"></i></div>
+            <div class="ctx-stat"><span>占用 <b id="ctxChars">207</b> / 4000 字符</span><span>换出 <b id="ctxSpill">0</b></span></div>
+            <button class="btn ghost" id="ctxSim" style="width:100%;justify-content:center;margin-top:12px;padding:7px 12px;font-size:12px">模拟一次追问 →</button>
+            <div class="ctx-stat" style="margin-top:8px"><span>工具读取 <b id="ctxReads">0</b> 次</span><span id="ctxHint" style="color:var(--ink-3)">—</span></div>
+          </div>
+          <div class="ctx-pane">
+            <div class="pane-h"><span>DISK / SQLITE</span><b id="ctxDiskN">4 条</b></div>
+            <div class="ctx-slots" id="ctxDisk">
+              <div class="msg stub" data-id="t-041"><span class="id">t-041</span><span class="tx">去年试过，被回滚了…</span><span class="sz">34</span></div>
+              <div class="msg stub" data-id="c-118"><span class="id">c-118</span><span class="tx">theme.ts 的提交约定…</span><span class="sz">62</span></div>
+              <div class="msg stub" data-id="p-207"><span class="id">p-207</span><span class="tx">UI 改动需要谁批准…</span><span class="sz">45</span></div>
+              <div class="msg stub" data-id="x-093"><span class="id">x-093</span><span class="tx">周五团建报名…</span><span class="sz">22</span></div>
+            </div>
+            <div class="pane-h" style="margin-top:14px">SPILLED 保留 <b>ID + 50 字符桩</b></div>
+            <p class="small dim" style="margin:0">换出的消息不会消失，只是变成了一个「地址」。点它可以召回（消耗一次工具读取），再点窗口里的消息可以换出。</p>
+            <div class="ctx-stat" style="margin-top:12px;border-top:1px dashed var(--line);padding-top:10px"><span>缓存命中</span><b id="ctxHit">—</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH07 ============ -->
+<section class="sec" id="ch07">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-no">07 / DURABILITY</div>
+      <div>
+        <div class="sec-kicker">关机测试</div>
+        <h2>合上笔记本，任务还在跑吗</h2>
+        <p class="sec-sub">
+          这是「持久」这一条最容易被说成营销词的地方。拆开看其实很具体：
+          推理循环在哪台机器上跑、状态存在哪、执行命令的手是谁的。
+          三者绑在一起，设备就是生命周期；三者拆开，设备只是其中一个可插拔的端点。
+        </p>
+      </div>
+    </div>
+
+    <div class="power reveal" id="power">
+      <button class="switch" id="pwr" aria-label="切换笔记本电源状态"></button>
+      <span class="state">笔记本：<b id="pwrTxt">在线</b></span>
+      <span class="small dim">点开关，模拟合上盖子 / 断网</span>
+    </div>
+
+    <div class="slab reveal">
+      <div class="stack">
+        <div class="stack-h"><b>传统单会话 Agent</b><span>会话 = 生命周期</span></div>
+        <div class="layer" data-l="l1"><span class="dot"></span><span class="lb">LOOP</span><span class="ds">推理循环跑在你的终端里</span></div>
+        <div class="layer" data-l="l2"><span class="dot"></span><span class="lb">CONTEXT</span><span class="ds">上下文只存在于这个进程的内存</span></div>
+        <div class="layer" data-l="l3"><span class="dot"></span><span class="lb">PROCESS</span><span class="ds">子进程、测试、构建都挂在本地</span></div>
+        <div class="stack-note" id="legacyNote">&gt; 设备在线，一切正常。</div>
+      </div>
+
+      <div class="stack">
+        <div class="stack-h"><b>Super-agent</b><span>状态 = 生命周期</span></div>
+        <div class="layer" data-l="s1"><span class="dot"></span><span class="lb">COMPUTE</span><span class="ds">无状态 Loop 跑在云容器，随时可重启</span></div>
+        <div class="layer" data-l="s2"><span class="dot"></span><span class="lb">STATE</span><span class="ds">SQLite 是唯一事实源，进程死了它还在</span></div>
+        <div class="layer" data-l="s3"><span class="dot"></span><span class="lb">BYOM</span><span class="ds">本地 daemon 只执行命令，不做推理</span></div>
+        <div class="stack-note" id="superNote">&gt; 设备在线，daemon 待命。</div>
+      </div>
+    </div>
+
+    <div class="grid-3" style="margin-top:22px">
+      <div class="card reveal" style="padding:16px"><h4>为什么 Loop 必须无状态</h4><p class="small" style="margin:0;color:var(--ink-2)">有状态就没法随便重启、没法迁移、没法横向扩。把「记得什么」交给库，循环本身就成了可丢弃的。</p></div>
+      <div class="card reveal" style="padding:16px"><h4>为什么执行必须留在本地</h4><p class="small" style="margin:0;color:var(--ink-2)">代码、未提交的改动、凭证都在你机器上。云端不需要拿到这些，只需要发一条命令、收一个结果。</p></div>
+      <div class="card reveal" style="padding:16px"><h4>为什么 daemon 只执行不推理</h4><p class="small" style="margin:0;color:var(--ink-2)">一旦本地也跑推理，它就成了第二个大脑，状态会分裂。它只能是一个手，脑子只有一个。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH08 ============ -->
+<section class="sec" id="ch08">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-no">08 / EVIDENCE</div>
+      <div>
+        <div class="sec-kicker">账本</div>
+        <h2>它快了，但没白快</h2>
+        <p class="sec-sub">
+          论文给了一组合成负载的初步数据：每次约 300 条消息，其中约 20 条是真实工作请求，跑 5 次。
+          写代码被换成一个只消耗时间的假工具——所以它测的是<b>调度和协作</b>，不是代码质量。
+          这一点作者自己标得很清楚，读数字的时候要记住。
+        </p>
+      </div>
+    </div>
+
+    <div class="grid-2" style="align-items:start">
+      <div class="chart reveal">
+        <h4>任务完成时间</h4>
+        <div class="cap">单位：分钟 · 越低越好 · 合成负载，5 次运行</div>
+        <svg viewBox="0 0 520 210" width="100%" style="display:block">
+          <g font-family="monospace" font-size="9" fill="#6B7280">
+            <text x="104" y="58" text-anchor="end">p50 · 单会话</text>
+            <text x="104" y="88" text-anchor="end">p50 · Super</text>
+            <text x="104" y="128" text-anchor="end">p95 · 单会话</text>
+            <text x="104" y="158" text-anchor="end">p95 · Super</text>
+          </g>
+          <g>
+            <rect x="112" y="42" width="265" height="22" rx="3" fill="#E2DED2"/>
+            <text x="385" y="57" font-family="monospace" font-size="10" fill="#6B7280">20.4</text>
+            <rect x="112" y="72" width="161" height="22" rx="3" fill="#3F5BF6"/>
+            <text x="281" y="87" font-family="monospace" font-size="10" fill="#3F5BF6" font-weight="700">12.4</text>
+
+            <rect x="112" y="112" width="384" height="22" rx="3" fill="#E2DED2"/>
+            <text x="488" y="127" font-family="monospace" font-size="10" fill="#fff" text-anchor="end" font-weight="700">29.5</text>
+            <rect x="112" y="142" width="204" height="22" rx="3" fill="#3F5BF6"/>
+            <text x="324" y="157" font-family="monospace" font-size="10" fill="#3F5BF6" font-weight="700">15.7</text>
+          </g>
+          <g stroke="#EFEBE0">
+            <path d="M112 34V176"/><path d="M304 34V176" stroke-dasharray="2 4"/>
+          </g>
+          <text x="304" y="192" font-family="monospace" font-size="8" fill="#9CA3AF" text-anchor="middle">≈ 减半</text>
+          <text x="112" y="16" font-family="monospace" font-size="9" fill="#14171C">p95 从 29.5 → 15.7</text>
+        </svg>
+      </div>
+
+      <div class="grid-2" style="gap:12px">
+        <div class="stat reveal">
+          <div class="lb">TOKEN COST</div>
+          <div class="big">23.2<small>M</small></div>
+          <div class="sub">cache-read token / 次<br>单会话基线：6.1–10.8M</div>
+        </div>
+        <div class="stat reveal">
+          <div class="lb">THREAD 直通</div>
+          <div class="big">+37<small>%</small></div>
+          <div class="sub">去掉直通后 token<br>23.23M → 31.77M</div>
+        </div>
+        <div class="stat reveal">
+          <div class="lb">ROUTER 决策</div>
+          <div class="big">+30<small>%</small></div>
+          <div class="sub">去掉直通后<br>调度次数上涨</div>
+        </div>
+        <div class="stat reveal">
+          <div class="lb">单次决策推理</div>
+          <div class="big">1.6<small>s</small></div>
+          <div class="sub">负载 40× 后<br>从 6.4s 降下来（−75%）</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card reveal" style="margin-top:18px">
+      <h4>一个反直觉的结论：负载越高，单位成本越低</h4>
+      <p style="font-size:14px;color:var(--ink-2);margin-bottom:10px">
+        触发率从每分钟 1 次涨到 40 次，批处理把多个 Trigger 合并成一次决策，
+        平均批大小从 1.0 升到 2.8。结果是单次决策的推理时间从 6.4 秒降到 1.6 秒——
+        虽然消息延迟从 2.5 秒升到 3.9 秒。
+      </p>
+      <div style="display:flex;gap:26px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)">
+        <span>触发率 <b style="color:var(--ink)">1 → 40</b> /min</span>
+        <span>批大小 <b style="color:var(--ink)">1.0 → 2.8</b></span>
+        <span>延迟 <b style="color:var(--ink)">2.5 → 3.9</b> s</span>
+        <span>推理 <b style="color:var(--ink)">6.4 → 1.6</b> s</span>
+      </div>
+      <p class="small dim" style="margin:12px 0 0">
+        这就是「合并就绪队列唤醒」在 Agent 上的版本：攒一批一起判，比一条一判便宜得多。
+        代价是最后一条消息要多等一会儿。系统选择了吞吐。
+      </p>
+    </div>
+
+    <h3 class="reveal">现在说不好的部分</h3>
+    <p class="reveal" style="max-width:66ch;color:var(--ink-2);font-size:14.5px">
+      这套架构被讨论得最多的不是它有多强，而是它的边界在哪。下面这些不是「未来会更好」的客套话，
+      是作者和外部评审都点出来的具体缺口。做技术选型时，这些比性能数字更重要。
+    </p>
+
+    <div style="margin-top:18px">
+      <div class="risk reveal"><div class="no">01</div><div><h4>隔离是默认值，不是安全边界</h4><p>README 写得很直白：阻断命令、每工单独立目录「establish defaults, not a security boundary」——Worker 仍然可以用绝对路径执行程序。而它是以<b>操作员的操作系统用户</b>身份跑 shell 的。自动接收不可信事件 + 高权限执行，这是个危险的组合。合并条件也只是 prompt 里的指令，真正的审批得靠分支保护。</p></div></div>
+      <div class="risk reveal"><div class="no">02</div><div><h4>Prompt injection 只是被约束，不是被阻止</h4><p>来源过滤、白名单、授权表能降低概率，但事件是从 GitHub 和聊天里自动流进来的，攻击面天然开放。论文自己的措辞是 constrain 而不是 prevent。任何把它接到公开仓库上的部署，都得先想清楚这一层。</p></div></div>
+      <div class="risk reveal"><div class="no">03</div><div><h4>Router 是一个单点</h4><p>所有人类交互都过它，所有跨任务判断也在它这里。要往上扩只能做分片调度，而分片就会牺牲一部分「全局只有一个 Agent」的连续性。这是设计里没有免费午餐的地方。</p></div></div>
+      <div class="risk reveal"><div class="no">04</div><div><h4>看门狗自己也会坏</h4><p>「谁监控监控者」没有彻底答案。所以补救措施必须保守：破坏性操作默认只告警，人工确认才执行。这意味着它不是一个能完全放手的系统。</p></div></div>
+      <div class="risk reveal"><div class="no">05</div><div><h4>省的是注意力，花的是钱</h4><p>cache-read token 23.2M，对比单会话的 6.1–10.8M，大约是 2–4 倍。这笔账划不划算，取决于人的时薪和任务等待的成本。对个人开发者，可能不划算；对一个每天被几十条 review 淹没的团队，可能很划算。</p></div></div>
+      <div class="risk q reveal"><div class="no">06</div><div><h4>论文 ≠ 原型</h4><p>异步 ReAct 在 Harness 里实现了但默认关闭；独立的 Watchdog 会话原型里没有，只有心跳板和副作用重试；长期跨月记忆、A2A 通信、组织级权限都还在开放问题里。作者明确说有些设计是未来方向。</p></div></div>
+      <div class="risk q reveal"><div class="no">07</div><div><h4>它是研究原型，不是产品</h4><p>README 第一句：reference only, not an official DeepSeek product。相当一部分代码是 coding agent 自己写的，作者自己说可能有 bug、风格不一致。拿去用之前得自己审一遍。</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CH09 ============ -->
+<section class="sec" id="ch09">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-no">09 / GLOSSARY</div>
+      <div>
+        <div class="sec-kicker">概念速查</div>
+        <h2>看论文前先认这十几个词</h2>
+        <p class="sec-sub">
+          这套文档有一个很好的习惯：只保留工作真正需要的概念，业务需求变成某个概念的属性，
+          而不是新增一个概念。所以词表不长，但每个词都有明确的规则。
+        </p>
+      </div>
+    </div>
+
+    <div class="grid-2" style="align-items:start;gap:18px">
+      <div class="reveal">
+        <details class="gloss" open><summary>Super-agent<span class="gb">系统形态</span></summary><div class="body">跨会话连续、并行处理多任务、主动响应环境、长期在线的 Agent 实体。不是模型，是架构。</div></details>
+        <details class="gloss"><summary>Harness<span class="gb">运行框架</span></summary><div class="body">承载 Agent 的运行时，DeepSeek 在 2026-08 以 MIT 开源（dsh），设计哲学是「一切皆插件」。Super-agent 原型是它的一个 bundle。</div></details>
+        <details class="gloss"><summary>Router<span class="gb">调度层</span></summary><div class="body">常驻的全局协调节点。承接所有人类交互、维护全局上下文、判断任务派给谁。它不做具体工作，可以没有 shell 工具，用轻量模型就够。</div></details>
+        <details class="gloss"><summary>Worker<span class="gb">执行层</span></summary><div class="body">隔离的执行单元。一个任务一个上下文、一个目录，配完整工具链和最强模型。不直接对人说话，只向上汇报。</div></details>
+        <details class="gloss"><summary>Session<span class="gb">会话</span></summary><div class="body">一次连续的模型交互上下文。在 Super-agent 里它退化成实现细节，不再是用户组织工作的单位。</div></details>
+        <details class="gloss"><summary>Trigger<span class="gb">触发</span></summary><div class="body">一个不可变的输入事件，带来源元数据（谁发的、在哪个平台）。幂等：同一个 Trigger 接两次只建一个工单。是审计和去重的单位。</div></details>
+        <details class="gloss"><summary>Thread<span class="gb">线程 / 话题</span></summary><div class="body">按时间排列的一组 Trigger，由 Source 定义什么算同一条 Thread（一个 PR、一个群话题）。同一条 Thread 上同时只跑一个 Eval。</div></details>
+        <details class="gloss"><summary>Source<span class="gb">来源</span></summary><div class="body">事件流的抽象。一种 kind 是可复用的实现（GitHub、飞书），一个 instance 是一份配置（监听什么、用哪个账号）。它负责把平台消息翻译成统一事件。</div></details>
+        <details class="gloss"><summary>Gate<span class="gb">准入</span></summary><div class="body">Eval 的第一层，确定性代码：谁有权发起工作、以多强的依据、有没有在白名单里。零模型成本，挡掉绝大多数噪音。</div></details>
+        <details class="gloss"><summary>Eval / Assessment<span class="gb">评估 / 研判</span></summary><div class="body">Eval 是把一批 Trigger 变成一个 Decision 的过程；Assessment 是其中由模型做的那部分语义判断。注意它不持有状态。</div></details>
+        <details class="gloss"><summary>Ticket<span class="gb">工单</span></summary><div class="body">一个「已授权的工作」单位。只有 Eval 能创建。它有自己的生命周期（open → ended → 可被人的消息恢复），不跟随执行器的状态。</div></details>
+        <details class="gloss"><summary>Mandate<span class="gb">授权</span></summary><div class="body">接单时签发的东西：策略版本、范围、强度、命中的规则、发起人身份。不可变；扩大范围要开新工单；只有人能撤销；恢复前要按当前策略重新校验。</div></details>
+        <details class="gloss"><summary>Assignment<span class="gb">派工</span></summary><div class="body">工单和某个执行器实例的绑定。一个工单一生可以有多次派工，每次独立地 pending → running → ended。</div></details>
+        <details class="gloss"><summary>Subscription<span class="gb">订阅</span></summary><div class="body">工单和 Thread 的多对多关系。订阅之后，该 Thread 的新消息会直接扇出给这个工单，不再走一遍全局判断。</div></details>
+        <details class="gloss"><summary>WorkerSlots<span class="gb">并发配额</span></summary><div class="body">同时运行的 Worker 数量上限，超了排队。人发来的消息可以额外占用一个保留槽，保证它永远不排在新任务后面。</div></details>
+        <details class="gloss"><summary>Inline &amp; Spill<span class="gb">上下文缓存</span></summary><div class="body">把上下文窗口当缓存：需要的载入（Inline），不需要的换出但留 ID + 50 字符桩（Spill）。对应 OS 的 page in / page out。</div></details>
+        <details class="gloss"><summary>Chain of Recall<span class="gb">链式召回</span></summary><div class="body">对象 ID 之间互相引用形成的检索链。从一个桩跳到原文，再从原文跳到下一条记录。对应页表的指针追逐。</div></details>
+        <details class="gloss"><summary>BYOM<span class="gb">自带机器</span></summary><div class="body">Bring Your Own Machine。本地开发机上跑一个轻量 daemon，只执行命令、不做推理，持有代码和凭证。设备离线时任务暂停而不销毁。</div></details>
+        <details class="gloss"><summary>Watchdog<span class="gb">看门狗</span></summary><div class="body">独立的监控会话/进程，不参与实际工作。靠心跳判断 Worker 是否真在推进。核心原则：故障检测不能跑在故障组件内部。</div></details>
+        <details class="gloss"><summary>投机执行<span class="gb">Speculative</span></summary><div class="body">结果还不确定时先在后台算。典型策略「静默复现并修复」：确认能简单修好才提交，否则保持安静。</div></details>
+        <details class="gloss"><summary>ReAct<span class="gb">推理-行动循环</span></summary><div class="body">Reason + Act 的循环范式。经典实现是同步阻塞的；Super-agent 把它改成异步 start/stop，实现全双工交互。</div></details>
+        <details class="gloss"><summary>Worktree<span class="gb">工作树</span></summary><div class="body">git worktree，同一个仓库拉出多个独立检出目录。原型用它给每个工单一份干净的工作区，互不干扰。</div></details>
+      </div>
+
+      <div class="reveal gloss-side">
+        <div class="card" style="background:var(--paper-2);margin-bottom:16px">
+          <h4>一条值得记住的设计规则</h4>
+          <p style="font-size:13.5px;color:var(--ink-2);margin:0">
+            「一个概念只有一种写法，一种状态只有一个写者。」
+            这套系统里，Trigger、Thread、Ticket、Decision、Assignment 全部只能由 Engine 写；
+            Source 只能通过两个命令间接改工单。听起来像洁癖，但这是它能被调试、能被回放、能重建状态的前提。
+          </p>
+        </div>
+        <div class="card">
+          <h4>如果你要自己搭一套</h4>
+          <ul class="notes" style="font-size:13px">
+            <li><span class="tag">先做</span><div>把「输入」和「执行」拆开。哪怕只有一个 Worker，先让调度器不干活。</div></li>
+            <li><span class="tag">再做</span><div>给每个执行单元一个干净的目录和上下文。隔离带来的收益比并行更早出现。</div></li>
+            <li><span class="tag">然后</span><div>把所有状态放进一个库，让循环可以随时被杀掉重启。</div></li>
+            <li><span class="tag">最后</span><div>加监控，但别让它跑在被监控的进程里。</div></li>
+            <li><span class="tag">别急</span><div>先别做主动性。默认「只记录不执行」，等你确认它想做的事对，再放开。</div></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <h3>资料来源</h3>
+    <ol>
+      <li>DeepSeek Harness Team, <i>Exploring Super-agent Design: Towards a More Autonomous Agent System</i>, 2026-10-31（北京时间）。本文的四个特征、五个模块、OS 映射与实验数据均出自此文。</li>
+      <li><code>deepseek-ai/dsh-superagent-prototype</code>（MIT）—— 仓库内 <code>docs/000-philosophy.md</code>、<code>001-domain.md</code>、<code>002-authorization.md</code>、<code>003-execution.md</code>、<code>007-architecture.md</code>。领域概念、授权规则、工具数量、字符预算等细节以源码文档为准。</li>
+      <li>交叉核对：上海纽约大学 RITS 技术摘要、guibai.dev 架构拆解、besthub 的 OS 概念映射分析、DOIT 与浙江在线中文报道。用于校验数字与时间线，不替代原文。</li>
+    </ol>
+    <div class="foot-note">
+      说明：本文是第三方解读，不是 DeepSeek 官方材料。所有性能数字来自论文的合成负载实验，测的是调度与协作效率，不是代码质量；
+      原型是研究代码，不是可投产产品。页面里的三个交互演示为教学简化，规则与真实实现同构但不等价。
+      <br><br>
+      读 · 2026.11 ｜ 单页自包含，无外部依赖 ｜ 可离线打开
+    </div>
+  </div>
+</footer>
+
+<script>
+document.documentElement.classList.add('js');
+
+/* ---------- reveal ---------- */
+(function(){
+  var els = document.querySelectorAll('.reveal');
+  if (!('IntersectionObserver' in window)) { els.forEach(function(e){e.classList.add('in');}); return; }
+  var fired = 0;
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if (en.isIntersecting) { en.target.classList.add('in'); fired++; io.unobserve(en.target); }
+    });
+  }, {threshold:0.12, rootMargin:'0px 0px -40px 0px'});
+  els.forEach(function(e){ io.observe(e); });
+  setTimeout(function(){ if (fired === 0) { els.forEach(function(e){ e.classList.add('in'); }); } }, 1800);
+})();
+
+/* ---------- nav highlight + attention meter ---------- */
+(function(){
+  var secs = Array.prototype.slice.call(document.querySelectorAll('section[id]'));
+  var links = Array.prototype.slice.call(document.querySelectorAll('.sb-nav a'));
+  var fill = document.getElementById('sbFill'), pct = document.getElementById('sbPct');
+  function onScroll(){
+    var y = window.scrollY + 130, cur = '';
+    secs.forEach(function(s){ if (s.offsetTop <= y) cur = s.id; });
+    links.forEach(function(a){ a.classList.toggle('on', a.getAttribute('href') === '#'+cur); });
+    var max = document.body.scrollHeight - window.innerHeight;
+    var p = max > 0 ? Math.min(1, window.scrollY / max) : 0;
+    var v = Math.max(34, Math.round(100 - p*66));
+    if (fill) fill.style.width = v + '%';
+    if (pct) pct.textContent = v + '%';
+    if (fill) fill.style.background = v < 55 ? '#E0592F' : (v < 78 ? '#C9A227' : '#12855C');
+  }
+  window.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+})();
+
+/* ---------- pair cards ---------- */
+(function(){
+  var pairs = Array.prototype.slice.call(document.querySelectorAll('.pair'));
+  pairs.forEach(function(p){
+    p.addEventListener('click', function(e){
+      if (e.target.tagName === 'A') return;
+      p.classList.toggle('open');
+    });
+  });
+  var btn = document.getElementById('pairToggle');
+  if (btn) btn.addEventListener('click', function(){
+    var anyClosed = pairs.some(function(p){ return !p.classList.contains('open'); });
+    pairs.forEach(function(p){ p.classList.toggle('open', anyClosed); });
+    btn.textContent = anyClosed ? '全部收起' : '全部展开';
+  });
+  var seg = document.getElementById('viewSeg');
+  if (seg) seg.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    Array.prototype.forEach.call(seg.querySelectorAll('button'), function(x){ x.classList.remove('on'); });
+    b.classList.add('on');
+    var wrap = document.getElementById('pairs');
+    if (b.dataset.view === 'ag') { wrap.classList.add('flip'); }
+    else { wrap.classList.remove('flip'); }
+  });
+})();
+
+/* ---------- GAME A: attention overload ---------- */
+(function(){
+  var root = document.getElementById('gameA'); if (!root) return;
+  var board = document.getElementById('gaBoard');
+  var cards = Array.prototype.slice.call(board.querySelectorAll('.ga-session'));
+  var elTime = document.getElementById('gaTime'), elAtt = document.getElementById('gaAtt');
+  var elBack = document.getElementById('gaBacklog'), elLog = document.getElementById('gaLog');
+  var btnStart = document.getElementById('gaStart'), btnReset = document.getElementById('gaReset');
+  var over = document.getElementById('gaOver'), overTitle = document.getElementById('gaOverTitle'), overText = document.getElementById('gaOverText');
+  var btnAgain = document.getElementById('gaAgain');
+
+  var pending = [0,0,0,0,0], handling = false, running = false, timer = null, spawner = null;
+  var timeLeft = 30, att = 100, logs = [];
+
+  cards.forEach(function(c){
+    var p = document.createElement('div'); p.className = 'ga-prog'; c.appendChild(p);
+  });
+
+  function total(){ return pending.reduce(function(a,b){return a+b;},0); }
+
+  function render(){
+    var t = total();
+    cards.forEach(function(c, i){
+      var pill = c.querySelector('.ga-pill');
+      pill.textContent = pending[i] + ' 待处理';
+      c.classList.toggle('hot', pending[i] > 0 && !handling);
+      if (pending[i] === 0) c.classList.remove('hot');
+    });
+    elTime.textContent = Math.max(0, timeLeft).toFixed(1);
+    elAtt.textContent = Math.max(0, Math.round(att));
+    elBack.textContent = t;
+    elAtt.style.color = att < 35 ? 'var(--orange)' : (att < 65 ? '#8A6D0B' : 'var(--ink)');
+    elAtt.style.fontWeight = '700';
+  }
+  function log(s){
+    logs.push(s); if (logs.length > 3) logs.shift();
+    elLog.innerHTML = logs.join('<br>');
+  }
+
+  function reset(){
+    running = false; handling = false;
+    if (timer) clearInterval(timer); if (spawner) clearInterval(spawner);
+    timer = spawner = null;
+    pending = [0,0,0,0,0]; timeLeft = 30; att = 100; logs = [];
+    over.classList.remove('show');
+    cards.forEach(function(c){ c.classList.remove('hot','busy'); var p = c.querySelector('.ga-prog'); if(p) p.style.width='0%'; });
+    elLog.innerHTML = '&gt; 待启动。点上面的按钮。';
+    render();
+  }
+
+  function finish(reason){
+    if (!running) return;
+    running = false;
+    if (timer) clearInterval(timer); if (spawner) clearInterval(spawner);
+    timer = spawner = null;
+    if (reason === 'crash') {
+      overTitle.textContent = '上下文崩溃';
+      overText.innerHTML = '你在第 <b>' + (30 - Math.max(0,timeLeft)).toFixed(1) + ' 秒</b>崩了，此时积压 <b>' + total() + '</b> 条。<br>但这不是意志力问题：一个人同时只能跟进 3–5 个活跃会话，这是系统的上限。你刚才做的所有事，本来都该由调度器做。';
+    } else {
+      overTitle.textContent = '你撑住了 30 秒';
+      overText.innerHTML = '代价是你这 30 秒里什么都没干成——没有写一行代码，没有想清楚一个问题。<br>而真实工作里，这样的一天会有 8 个小时。';
+    }
+    over.classList.add('show');
+    log('&gt; 压力测试结束。');
+  }
+
+  function start(){
+    reset();
+    running = true;
+    timeLeft = 30; att = 100;
+    over.classList.remove('show');
+    log('&gt; 开始。你有 5 个会话，一个注意力。');
+    spawner = setInterval(function(){
+      if (!running) return;
+      if (Math.random() < 0.86) {
+        var i = Math.floor(Math.random() * 5);
+        pending[i]++;
+        render();
+      }
+    }, 620);
+    timer = setInterval(function(){
+      if (!running) return;
+      timeLeft -= 0.1;
+      var t = total();
+      var drain = 0.03 + t * 0.14;
+      if (t >= 5) drain *= 1.2;
+      att -= drain;
+      if (att <= 0) { att = 0; render(); finish('crash'); return; }
+      if (timeLeft <= 0) { timeLeft = 0; render(); finish('time'); return; }
+      render();
+    }, 100);
+  }
+
+  cards.forEach(function(card, i){
+    card.addEventListener('click', function(){
+      if (!running || handling) return;
+      if (pending[i] <= 0) return;
+      handling = true;
+      card.classList.add('busy'); card.classList.remove('hot');
+      var p = card.querySelector('.ga-prog');
+      var start = Date.now(), dur = 900;
+      var iv = setInterval(function(){
+        var k = Math.min(1, (Date.now() - start) / dur);
+        p.style.width = (k * 100) + '%';
+        if (k >= 1) {
+          clearInterval(iv);
+          pending[i] = Math.max(0, pending[i] - 1);
+          att = Math.min(100, att + 4);
+          p.style.width = '0%';
+          card.classList.remove('busy');
+          handling = false;
+          log('&gt; 处理了 <b>#' + (i+1) + '</b> 的一条，但新的又来了。');
+          render();
+        }
+      }, 40);
+    });
+  });
+
+  btnStart.addEventListener('click', start);
+  btnReset.addEventListener('click', reset);
+  btnAgain.addEventListener('click', start);
+  reset();
+})();
+
+/* ---------- GAME B: router dispatch ---------- */
+(function(){
+  var root = document.getElementById('gameB'); if (!root) return;
+  var queueEl = document.getElementById('gbQueue');
+  var workerEls = Array.prototype.slice.call(document.querySelectorAll('#gbWorkers .gb-worker'));
+  var elTime = document.getElementById('gbTime'), elScore = document.getElementById('gbScore');
+  var elDone = document.getElementById('gbDone'), elToken = document.getElementById('gbToken');
+  var elLog = document.getElementById('gbLog'), toast = document.getElementById('gbToast');
+  var over = document.getElementById('gbOver'), overTitle = document.getElementById('gbOverTitle'), overText = document.getElementById('gbOverText');
+  var btnStart = document.getElementById('gbStart'), btnReset = document.getElementById('gbReset');
+  var btnBatch = document.getElementById('gbBatch'), btnAgain = document.getElementById('gbAgain');
+
+  var S = null;
+
+  var TASKS = [
+    '修 check-dark-mode 的空指针',
+    '给设置页补一个开关',
+    'review #482 的改动',
+    '跑一遍受影响的用例',
+    '把 CI 失败定位到具体提交',
+    '把改动拆成两个 PR',
+    '补一条回归测试'
+  ];
+  var NOISE = [
+    '周五团建报名接龙',
+    '有人在群里发了个链接',
+    '周报模板更新了',
+    '产品问了个概念问题',
+    '同事请假一周'
+  ];
+  var LINKS = [
+    '#482 有新评论：这里应该用 memo',
+    '#482 作者补充了复现步骤',
+    '#482 CI 重跑通过了',
+    '#517 又提了一个相关 issue'
+  ];
+
+  function init(){
+    return {
+      running:false, time:45, score:0, done:0, token:0, queue:[],
+      workers:[{busy:false,left:0,dur:0,label:'—'},{busy:false,left:0,dur:0,label:'—'},{busy:false,left:0,dur:0,label:'—'}],
+      spawnT:0, logs:[], uid:0, overflow:0
+    };
+  }
+
+  function toastMsg(msg){
+    toast.textContent = msg; toast.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function(){ toast.classList.remove('show'); }, 1200);
+  }
+  function log(s){
+    S.logs.push(s); if (S.logs.length > 3) S.logs.shift();
+    elLog.innerHTML = S.logs.join('<br>');
+  }
+
+  function renderQueue(){
+    var sig = S.queue.map(function(x){ return x.uid; }).join(',') + '|' + (S.running ? 'r' : 's');
+    if (queueEl.dataset.sig === sig) return;
+    queueEl.dataset.sig = sig;
+    if (!S.queue.length) {
+      queueEl.innerHTML = '<div class="gb-empty">' + (S.running ? '队列空。等事件流入…' : '等待事件流入…') + '</div>';
+      return;
+    }
+    queueEl.innerHTML = '';
+    S.queue.forEach(function(it){
+      var d = document.createElement('div');
+      d.className = 'gb-item ' + it.type;
+      d.innerHTML = '<span class="k">' + (it.type === 'task' ? 'TASK' : it.type === 'noise' ? 'FYI' : 'LINK') + '</span>'
+        + '<span class="t">' + it.text + '</span>';
+      d.addEventListener('click', function(){ handle(it); });
+      queueEl.appendChild(d);
+    });
+  }
+
+  function renderWorkers(){
+    S.workers.forEach(function(w, i){
+      var el = workerEls[i];
+      el.classList.toggle('busy', w.busy);
+      el.querySelector('.wh span').textContent = w.busy ? Math.ceil(w.left/1000) + 's' : 'idle';
+      el.querySelector('.wt').textContent = w.busy ? w.label : '—';
+      el.querySelector('.gb-wbar i').style.width = w.busy ? (100 * (1 - w.left / w.dur)) + '%' : '0%';
+    });
+  }
+
+  function render(){
+    elTime.textContent = Math.max(0, Math.ceil(S.time));
+    elScore.textContent = S.score;
+    elDone.textContent = S.done;
+    elToken.textContent = S.token >= 1000 ? (S.token/1000).toFixed(1) + 'k' : S.token;
+    renderQueue(); renderWorkers();
+  }
+
+  function freeSlot(){
+    for (var i=0;i<S.workers.length;i++) if (!S.workers[i].busy) return i;
+    return -1;
+  }
+
+  function dispatch(text, ms, cost){
+    var i = freeSlot();
+    if (i < 0) return false;
+    S.workers[i].busy = true; S.workers[i].left = ms; S.workers[i].dur = ms; S.workers[i].label = text;
+    S.token += cost;
+    return true;
+  }
+
+  function handle(it){
+    if (!S.running) return;
+    var idx = S.queue.indexOf(it);
+    if (idx < 0) return;
+
+    if (it.type === 'noise') {
+      S.queue.splice(idx,1); S.score += 4; S.done++;
+      log('&gt; 过滤了一条噪音，<i>0 token</i>。');
+      render(); return;
+    }
+
+    if (it.type === 'thread') {
+      var busyIdx = -1;
+      for (var i=0;i<S.workers.length;i++) if (S.workers[i].busy) { busyIdx = i; break; }
+      if (busyIdx >= 0) {
+        S.queue.splice(idx,1); S.score += 14; S.done++; S.token += 220;
+        S.workers[busyIdx].left = Math.max(400, S.workers[busyIdx].left - 600);
+        log('&gt; <b>直通</b>给 WORKER 0' + (busyIdx+1) + '，绕过 Router，token 省约 75%。');
+        render(); return;
+      }
+      // 没有在跑的 worker，按普通任务处理
+    }
+
+    if (!dispatch(it.text, 2400, it.type === 'thread' ? 220 : 900)) {
+      toastMsg('槽位已满 · 排队等待');
+      return;
+    }
+    S.queue.splice(idx,1);
+    S.score += it.type === 'thread' ? 14 : 10;
+    S.done++;
+    render();
+  }
+
+  function batch(){
+    if (!S.running) return;
+    var actionable = S.queue.filter(function(x){ return x.type !== 'noise'; });
+    if (!actionable.length) { toastMsg('没有可批处理的任务'); return; }
+    var n = 0, cost = 0;
+    actionable.forEach(function(it){
+      if (dispatch(it.text, 2400, 650)) {
+        n++; cost += 650;
+        var k = S.queue.indexOf(it); if (k >= 0) S.queue.splice(k,1);
+        S.done++;
+      }
+    });
+    if (!n) { toastMsg('槽位已满'); return; }
+    S.score += n * 12;
+    log('&gt; 批处理 <b>' + n + '</b> 条 → 一次决策，单条成本降到 650 token。');
+    render();
+  }
+
+  function finish(){
+    S.running = false;
+    if (S.loop) clearInterval(S.loop);
+    var avg = S.done ? Math.round(S.token / S.done) : 0;
+    overTitle.textContent = '这一班结束了';
+    overText.innerHTML = '处理 <b>' + S.done + '</b> 条，得分 <b>' + S.score + '</b>，消耗 <b>' + S.token.toLocaleString() + '</b> token（平均 ' + avg + '/条）。<br>'
+      + '注意三件事：过滤噪音不花 token；直通比重新派发便宜约 3/4；批处理把多条合成一次决策。<br>'
+      + '<span style="color:var(--ink-3)">真实系统里这三件事分别叫 Gate、Subscription、Batching。</span>';
+    over.classList.add('show');
+  }
+
+  function start(){
+    S = init(); S.running = true;
+    over.classList.remove('show');
+    elLog.innerHTML = '&gt; 值班开始。你只有一个职责：决定谁来做。';
+
+    S.loop = setInterval(function(){
+      if (!S.running) return;
+      S.time -= 0.1;
+
+      // spawn
+      S.spawnT -= 100;
+      if (S.spawnT <= 0) {
+        S.spawnT = 1000;
+        var r = Math.random();
+        var type = r < 0.28 ? 'noise' : (r < 0.44 ? 'thread' : 'task');
+        var pool = type === 'noise' ? NOISE : (type === 'thread' ? LINKS : TASKS);
+        if (S.queue.length >= 8) {
+          S.queue.shift(); S.overflow++; S.score -= 5;
+          log('&gt; <i>队列溢出</i>，丢了一条最早的。');
+        }
+        S.queue.push({type:type, text:pool[Math.floor(Math.random()*pool.length)], uid:++S.uid});
+      }
+
+      // workers
+      S.workers.forEach(function(w){
+        if (!w.busy) return;
+        w.left -= 100;
+        if (w.left <= 0) { w.busy = false; w.left = 0; w.label = '—'; }
+      });
+
+      if (S.time <= 0) { S.time = 0; render(); finish(); return; }
+      render();
+    }, 100);
+  }
+
+  btnStart.addEventListener('click', start);
+  btnAgain.addEventListener('click', start);
+  btnReset.addEventListener('click', function(){
+    if (S && S.loop) clearInterval(S.loop);
+    S = init(); over.classList.remove('show');
+    elLog.innerHTML = '&gt; Router 待机。点「开始值班」，你就是调度器。';
+    render();
+  });
+  btnBatch.addEventListener('click', batch);
+
+  S = init(); render();
+})();
+
+/* ---------- context cache demo ---------- */
+(function(){
+  var winEl = document.getElementById('ctxWin'), diskEl = document.getElementById('ctxDisk');
+  if (!winEl || !diskEl) return;
+  var items = [
+    {id:'t-001', text:'需求：给暗色模式加「跟随系统」开关', size:86},
+    {id:'t-014', text:'PR 评论：判断逻辑应放在设置模块', size:52},
+    {id:'t-027', text:'CI：3 个快照用例失败', size:41},
+    {id:'t-033', text:'设计稿：暗色色板 v3', size:28},
+    {id:'t-041', text:'去年试过，被回滚了…', size:34},
+    {id:'c-118', text:'theme.ts 的提交约定…', size:62},
+    {id:'p-207', text:'UI 改动需要谁批准…', size:45},
+    {id:'x-093', text:'周五团建报名…', size:22}
+  ];
+  var inWin = { 't-001':1, 't-014':1, 't-027':1, 't-033':1 };
+  var cap = 6, budget = 4000, reads = 0, spills = 0, hits = 0;
+
+  var elCap = document.getElementById('ctxCap'), elChars = document.getElementById('ctxChars');
+  var elSpill = document.getElementById('ctxSpill'), elReads = document.getElementById('ctxReads');
+  var elHint = document.getElementById('ctxHint'), elDiskN = document.getElementById('ctxDiskN');
+  var elHit = document.getElementById('ctxHit'), elFill = document.getElementById('ctxFill');
+
+  function count(){ return Object.keys(inWin).length; }
+  function chars(){ return items.filter(function(i){return inWin[i.id];}).reduce(function(a,b){return a+b.size;},0); }
+
+  function card(it, inWindow){
+    var d = document.createElement('div');
+    d.className = 'msg' + (inWindow ? '' : ' stub');
+    d.innerHTML = '<span class="id">' + it.id + '</span><span class="tx">' + it.text + '</span><span class="sz">' + it.size + '</span>';
+    d.addEventListener('click', function(){
+      if (inWindow) {
+        if (count() <= 1) { elHint.textContent = '窗口不能空'; return; }
+        delete inWin[it.id]; spills++;
+        elHint.textContent = '换出 ' + it.id + '，留 50 字符桩';
+      } else {
+        if (count() >= cap) { elHint.textContent = '窗口已满，先换出一条'; return; }
+        inWin[it.id] = 1; reads++;
+        elHint.textContent = '载入 ' + it.id;
+      }
+      render();
+    });
+    return d;
+  }
+
+  function render(){
+    winEl.innerHTML = ''; diskEl.innerHTML = '';
+    items.filter(function(i){return inWin[i.id];}).forEach(function(i){ winEl.appendChild(card(i,true)); });
+    items.filter(function(i){return !inWin[i.id];}).forEach(function(i){ diskEl.appendChild(card(i,false)); });
+
+    var c = count(), n = chars();
+    elCap.textContent = c + ' / ' + cap;
+    elChars.textContent = n;
+    elFill.style.width = Math.min(100, n / budget * 100).toFixed(1) + '%';
+    elSpill.textContent = spills;
+    elReads.textContent = reads;
+    elDiskN.textContent = (items.length - c) + ' 条';
+    elHit.textContent = (reads + hits) ? Math.round(hits/(reads+hits)*100) + '%' : '—';
+  }
+
+  document.getElementById('ctxSim').addEventListener('click', function(){
+    var outside = items.filter(function(i){ return !inWin[i.id]; });
+    if (!outside.length) { elHint.textContent = '全部命中，无需召回'; hits++; render(); return; }
+    var need = outside[Math.floor(Math.random() * outside.length)];
+    if (count() >= cap) {
+      var inw = items.filter(function(i){ return inWin[i.id]; });
+      var victim = inw[inw.length - 1];
+      delete inWin[victim.id]; spills++;
+      elHint.textContent = '为 ' + need.id + ' 腾位，换出 ' + victim.id;
+    }
+    inWin[need.id] = 1; reads++;
+    elHint.textContent = '未命中 → 按 ID 召回 ' + need.id;
+    render();
+    var node = winEl.querySelector('[data-id]');
+    Array.prototype.forEach.call(winEl.children, function(ch){
+      if (ch.textContent.indexOf(need.id) === 0) {
+        ch.classList.add('hit');
+        setTimeout(function(){ ch.classList.remove('hit'); }, 1200);
+      }
+    });
+  });
+
+  render();
+})();
+
+/* ---------- power switch ---------- */
+(function(){
+  var sw = document.getElementById('pwr'); if (!sw) return;
+  var txt = document.getElementById('pwrTxt'), wrap = document.getElementById('power');
+  var legacyNote = document.getElementById('legacyNote'), superNote = document.getElementById('superNote');
+  var l1 = document.querySelector('[data-l="l1"]'), l2 = document.querySelector('[data-l="l2"]'), l3 = document.querySelector('[data-l="l3"]');
+  var s1 = document.querySelector('[data-l="s1"]'), s2 = document.querySelector('[data-l="s2"]'), s3 = document.querySelector('[data-l="s3"]');
+  var off = false;
+  function apply(){
+    sw.classList.toggle('off', off);
+    wrap.classList.toggle('off', off);
+    txt.textContent = off ? '已合盖 / 断网' : '在线';
+
+    [l1,l2,l3].forEach(function(el){ el.classList.toggle('dead', off); });
+    if (legacyNote) legacyNote.innerHTML = off
+      ? '&gt; 会话已销毁。上下文丢失，任务停在半路。'
+      : '&gt; 设备在线，一切正常。';
+
+    s1.classList.toggle('dead', false);
+    s2.classList.toggle('dead', false);
+    s3.classList.toggle('pause', off);
+    if (superNote) superNote.innerHTML = off
+      ? '&gt; 云上循环继续，状态在库里；daemon 离线，任务<b>暂停</b>而不是销毁。'
+      : '&gt; 设备在线，daemon 待命。';
+  }
+  sw.addEventListener('click', function(){ off = !off; apply(); });
+  apply();
+})();
+</script>
+</body>
+</html>
