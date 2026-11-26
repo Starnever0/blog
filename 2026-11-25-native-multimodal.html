@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原生多模态 · 流派、架构与训练范式</title>
+<meta name="description" content="面向多模态与大模型研究者的原生多模态技术地图：融合深度分类、模型谱系、架构解剖、训练范式与选型判据。">
+<style>
+  :root{
+    --paper:#f6f5f1;
+    --card:#ffffff;
+    --ink:#12141a;
+    --sub:#5c626f;
+    --faint:#8d929d;
+    --line:#ded9cf;
+    --line2:#eae7e0;
+    --teal:#155e6e;
+    --teal-soft:#e8f1f2;
+    --rust:#a8402c;
+    --rust-soft:#f8ece8;
+    --gold:#8d6b1f;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--teal);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px;}
+
+  /* ---------- nav ---------- */
+  .nav{position:sticky;top:0;z-index:50;background:rgba(246,245,241,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
+  .nav-in{max-width:1080px;margin:0 auto;padding:10px 24px;display:flex;gap:18px;align-items:center;overflow-x:auto;}
+  .nav-quiz{margin-right:4px;font:600 10.5px/1 var(--mono);letter-spacing:.1em;color:var(--faint);white-space:nowrap;}
+  .nav-quiz b{color:var(--teal);}
+  .nav-tag{font:700 11px/1 var(--mono);letter-spacing:.18em;color:var(--rust);white-space:nowrap;}
+  .nav a{font:500 12px/1 var(--mono);color:var(--sub);white-space:nowrap;letter-spacing:.02em;}
+  .nav a:hover{color:var(--teal);text-decoration:none;}
+
+  /* ---------- hero ---------- */
+  .hero{background:var(--card);border-bottom:1px solid var(--line);padding:52px 0 0;}
+  .kicker{font:600 11px/1 var(--mono);letter-spacing:.22em;color:var(--rust);text-transform:uppercase;}
+  h1{font-size:46px;line-height:1.2;letter-spacing:-.03em;margin:16px 0 18px;font-weight:800;}
+  h1 small{display:block;font-size:19px;font-weight:500;letter-spacing:0;color:var(--sub);margin-top:14px;line-height:1.7;}
+  .lede{font-size:16.5px;line-height:1.85;color:#3a3f4a;max-width:66ch;margin:0;}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin:26px 0 0;}
+  .chip{font:500 11.5px/1 var(--mono);color:var(--sub);border:1px solid var(--line);border-radius:999px;padding:7px 12px;background:var(--paper);}
+  .chip b{color:var(--ink);font-weight:600;}
+
+  /* ---------- 三判据 ---------- */
+  .verdicts{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line);margin-top:40px;}
+  .vd{background:var(--card);padding:26px 24px 30px;}
+  .vd-n{font:700 11px/1 var(--mono);color:var(--rust);letter-spacing:.14em;margin-bottom:12px;}
+  .vd h3{font-size:15px;margin:0 0 8px;font-weight:700;line-height:1.5;}
+  .vd p{margin:0;font-size:13.5px;line-height:1.75;color:var(--sub);}
+  .vd p b{color:var(--ink);font-weight:600;}
+
+  /* ---------- section ---------- */
+  section{padding:54px 0 50px;border-bottom:1px solid var(--line2);}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:10px;}
+  .sec-num{font:700 11.5px/1 var(--mono);color:var(--rust);letter-spacing:.1em;}
+  h2{font-size:25px;line-height:1.4;margin:0;font-weight:750;letter-spacing:-.015em;}
+  .sec-sub{color:var(--sub);font-size:14.5px;margin:0 0 28px;max-width:70ch;line-height:1.8;}
+
+  /* ---------- figure ---------- */
+  .fig{margin:0 0 8px;background:var(--card);border:1px solid var(--line);padding:22px 24px 18px;}
+  .fig-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin-bottom:16px;flex-wrap:wrap;}
+  .fig-head h3{font-size:14.5px;margin:0;font-weight:700;}
+  .fig-head span{font:400 11px/1.4 var(--mono);color:var(--faint);}
+  .fig svg{width:100%;height:auto;display:block;}
+  .fig svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;}
+  figcaption{font-size:12px;color:var(--faint);margin-top:14px;line-height:1.7;border-top:1px dashed var(--line2);padding-top:10px;}
+  .fig-scroll{overflow-x:auto;}
+  .fig-scroll svg{min-width:720px;}
+
+  /* ---------- table ---------- */
+  .tbl-scroll{overflow-x:auto;border:1px solid var(--line);background:var(--card);}
+  table{border-collapse:collapse;width:100%;min-width:780px;font-size:13px;}
+  th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2);vertical-align:top;line-height:1.7;}
+  thead th{background:#fbfaf6;font:600 10.5px/1.5 var(--mono);color:var(--sub);letter-spacing:.09em;text-transform:uppercase;border-bottom:1px solid var(--line);}
+  tbody tr:last-child td{border-bottom:0;}
+  tbody tr:hover{background:#fcfbf7;}
+  td.k{font-weight:700;white-space:nowrap;}
+  td .tag{display:inline-block;font:500 10.5px/1 var(--mono);padding:4px 7px;border-radius:3px;background:var(--teal-soft);color:var(--teal);}
+  td .tag.r{background:var(--rust-soft);color:var(--rust);}
+  .num{font-family:var(--mono);font-size:12.5px;}
+
+  /* ---------- keyword cards ---------- */
+  .kw{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:4px;}
+  .kwc{background:var(--card);border:1px solid var(--line);padding:16px 17px 15px;}
+  .kwc dt{font:700 13px/1.4 var(--mono);letter-spacing:.01em;margin-bottom:6px;color:var(--teal);}
+  .kwc dd{margin:0;font-size:12.5px;line-height:1.7;color:var(--sub);}
+  .kwc dd em{font-style:normal;color:var(--ink);}
+
+  /* ---------- notes ---------- */
+  .note{border-left:3px solid var(--rust);background:var(--rust-soft);padding:14px 18px;margin:22px 0;font-size:13.5px;line-height:1.8;color:#4a352f;}
+  .note b{color:var(--rust);}
+  .note.teal{border-color:var(--teal);background:var(--teal-soft);color:#234249;}
+  .note.teal b{color:var(--teal);}
+  .prose{max-width:72ch;font-size:15px;line-height:1.85;color:#3a3f4a;}
+  .prose p{margin:0 0 14px;}
+  .prose b{color:var(--ink);font-weight:600;}
+
+  /* ---------- prose 变体 ---------- */
+  .prose.wide{max-width:none;}
+  .prose.split{max-width:none;columns:2;column-gap:40px;}
+  .prose.split p{break-inside:avoid;margin:0 0 12px;}
+  .prose.lead{max-width:none;border-left:3px solid var(--gold);padding:2px 0 2px 20px;font-size:15.5px;line-height:1.9;}
+  .prose.lead p:last-child{margin-bottom:0;}
+
+  /* ---------- epochs ---------- */
+  .ep-lead{font:600 11px/1.5 var(--mono);letter-spacing:.12em;color:var(--gold);margin:28px 0 10px;}
+  .epochs{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);}
+  .ep{background:var(--card);padding:16px 18px 18px;}
+  .ep-t{font:700 11px/1 var(--mono);letter-spacing:.1em;color:var(--rust);margin-bottom:9px;}
+  .ep-h{font-size:13.5px;font-weight:700;line-height:1.55;margin-bottom:7px;letter-spacing:-.01em;}
+  .ep p{margin:0;font-size:12.5px;line-height:1.75;color:var(--sub);}
+  .ep p b{color:var(--ink);font-weight:600;}
+
+  /* ---------- quiz ---------- */
+  .quiz{margin-top:26px;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--teal);padding:19px 22px 16px;}
+  .quiz-head{display:flex;align-items:baseline;gap:10px;}
+  .quiz-tag{font:700 10px/1 var(--mono);letter-spacing:.18em;color:var(--teal);}
+  .quiz-n{font:400 10px/1 var(--mono);color:var(--faint);margin-left:auto;letter-spacing:.06em;}
+  .quiz-q{font-size:14.5px;line-height:1.78;margin:10px 0 14px;font-weight:600;color:var(--ink);}
+  .quiz-q code{font:500 12.5px/1 var(--mono);background:#fbfaf6;border:1px solid var(--line2);padding:2px 5px;border-radius:3px;}
+  .opts{list-style:none;margin:0;padding:0;display:grid;gap:7px;}
+  .opt{display:flex;gap:11px;align-items:flex-start;border:1px solid var(--line2);background:#fcfbf8;padding:10px 13px;cursor:pointer;font-size:13.4px;line-height:1.72;color:#3a3f4a;transition:background .14s,border-color .14s;}
+  .opt:hover{border-color:#c9c4b8;background:#fbfaf6;}
+  .opt .k{flex:none;width:20px;height:20px;border-radius:50%;border:1px solid var(--line);background:#fff;font:600 10.5px/19px var(--mono);text-align:center;color:var(--sub);}
+  .opt .t{flex:1;}
+  .opt .t code{font:500 12px/1 var(--mono);color:var(--teal);}
+  .opt .mk{flex:none;font:600 10.5px/20px var(--mono);letter-spacing:.04em;opacity:0;}
+  .opt.ok{border-color:#2f6b4f;background:#eef5f0;}
+  .opt.ok .k{background:#2f6b4f;border-color:#2f6b4f;color:#fff;}
+  .opt.ok .mk{opacity:1;color:#2f6b4f;}
+  .opt.no{border-color:var(--rust);background:var(--rust-soft);}
+  .opt.no .k{background:var(--rust);border-color:var(--rust);color:#fff;}
+  .opt.no .mk{opacity:1;color:var(--rust);}
+  .quiz[data-done] .opt{cursor:default;}
+  .quiz-key{margin-top:13px;border-top:1px dashed var(--line2);padding-top:10px;}
+  .quiz-key summary{font:600 11.5px/1.7 var(--mono);color:var(--teal);cursor:pointer;letter-spacing:.05em;list-style:none;display:inline-block;}
+  .quiz-key summary::-webkit-details-marker{display:none;}
+  .quiz-key summary::before{content:"+ ";font-weight:700;}
+  .quiz-key[open] summary::before{content:"\2212  ";}
+  .quiz-key p{margin:9px 0 0;font-size:13px;line-height:1.85;color:var(--sub);}
+  .quiz-key p b{color:var(--ink);font-weight:600;}
+
+  /* ---------- refs ---------- */
+  .refs{columns:2;column-gap:34px;font-size:12.5px;line-height:1.7;color:var(--sub);}
+  .refs li{margin-bottom:9px;break-inside:avoid;}
+  .refs li b{color:var(--ink);font-weight:600;}
+  .refs .id{font-family:var(--mono);font-size:11.5px;color:var(--teal);}
+  sup a{font:600 10px/1 var(--mono);padding-left:2px;}
+
+  footer{padding:38px 0 60px;font-size:12px;color:var(--faint);line-height:1.9;}
+
+  @media (max-width:820px){
+    .epochs{grid-template-columns:1fr;}
+    .prose.split{columns:1;}
+    h1{font-size:34px;}
+    .verdicts{grid-template-columns:1fr;}
+    .refs{columns:1;}
+    section{padding:40px 0;}
+  }
+</style>
+</head>
+<body>
+
+<div class="nav"><div class="nav-in">
+  <span class="nav-tag">NATIVE MM</span>
+  <span class="nav-quiz" title="每节末尾各一道自测题，答完自动计数">CHECK <b id="qs">0</b>/7</span>
+  <a href="#s0">判据</a>
+  <a href="#s1">谱系</a>
+  <a href="#s2">五流派</a>
+  <a href="#s3">架构</a>
+  <a href="#s4">训练</a>
+  <a href="#s5">选型</a>
+  <a href="#s6">术语</a>
+  <a href="#s7">文献</a>
+</div></div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">Technical Map · Multimodal Foundation Models</div>
+    <h1>原生多模态
+      <small>从拼接、对齐到"出生即多模态"——五条技术路线、一张架构解剖图，以及区分"真原生"与"营销原生"的判据。</small>
+    </h1>
+    <p class="lede">"原生"目前没有统一标准。本文以 2026 年 5 月的 NMM 路线图综述为骨架<sup><a href="#r1">[1]</a></sup>，用其形式化定义把融合深度排成 late / mid / early 三档（late 作为被明确排除的基线），再叠加输入—输出对偶（M2T / M2G / M2M）做二维定位，最后用 457 个模型的 scaling law 实验<sup><a href="#r2">[2]</a></sup>回答那个最实际的问题：早融合到底值不值。</p>
+    <div class="meta">
+      <span class="chip"><b>2026-11-25</b></span>
+      <span class="chip">综述 <b>2</b> · 论文 <b>28</b></span>
+      <span class="chip">跨度 <b>2020 → 2026</b></span>
+      <span class="chip">阅读时长 <b>约 12 分钟</b></span>
+      <span class="chip">每节自测 <b>7</b> 题</span>
+    </div>
+
+    <div class="verdicts">
+      <div class="vd">
+        <div class="vd-n">JUDGEMENT 01</div>
+        <h3>"原生"是可形式化的，<br>不是形容词</h3>
+        <p>按 <b>F<sub>early</sub> = Transformer(∪ T(m<sub>i</sub>))</b>，只有统一 tokenizer + 单一主干才算 born-native；mid-fusion 是过渡态；late-fusion 被明确排除在 NMM 之外<sup><a href="#r1">[1]</a></sup>。</p>
+      </div>
+      <div class="vd">
+        <div class="vd-n">JUDGEMENT 02</div>
+        <h3>早融合不天然更强，<br>但更便宜</h3>
+        <p>同 compute 下早/晚融合的验证损失几乎重合（L ∝ C<sup>−0.049</sup> vs C<sup>−0.0494</sup>）；优势集中在低参数量与部署成本，而非上限<sup><a href="#r2">[2]</a></sup>。</p>
+      </div>
+      <div class="vd">
+        <div class="vd-n">JUDGEMENT 03</div>
+        <h3>真正的分歧在<br>理解—生成两难</h3>
+        <p>全离散统一要交感知信息税；双编码器解耦保住了感知，代价是参数与对齐复杂度。这是当下 M2M 路线的主战场<sup><a href="#r1">[1]</a><a href="#r3">[3]</a></sup>。</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ================= §0 ================= -->
+<section id="s0">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">00</span><h2>三档融合深度：把"原生"拆成可判定的结构</h2></div>
+    <p class="sec-sub">判据只有一条：<b>主干是否直接以原始模态信号为输入</b>。凡是先经独立编码器再注入主干的，无论训练得多联合，结构上仍属 late 或 mid，不是 born-native。</p>
+
+    <figure class="fig">
+      <div class="fig-head"><h3>图 1 · 融合深度三档与冻结拓扑</h3><span>Late / Mid / Early</span></div>
+      <div class="fig-scroll">
+      <svg viewBox="0 0 1000 470" role="img" aria-label="晚期融合、中期融合与早期融合的架构对比">
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#9aa0aa"/>
+          </marker>
+        </defs>
+
+        <!-- row1 -->
+        <rect x="0" y="8" width="1000" height="132" fill="#fcfbf8"/>
+        <text x="22" y="46" font-size="12" font-weight="700" fill="#a8402c" font-family="ui-monospace,monospace">①</text>
+        <text x="40" y="46" font-size="12.5" font-weight="700" fill="#12141a" letter-spacing="0.06em">LATE FUSION</text>
+        <text x="22" y="68" font-size="11.5" fill="#5c626f">拼接 · 后对齐</text>
+        <text x="22" y="88" font-size="10.5" fill="#8d929d" font-family="ui-monospace,monospace">2021 — 2023 主流</text>
+
+        <rect x="176" y="46" width="92" height="44" fill="#fff" stroke="#ded9cf"/>
+        <text x="222" y="73" font-size="12" fill="#3a3f4a" text-anchor="middle">图像</text>
+        <line x1="268" y1="68" x2="290" y2="68" stroke="#9aa0aa" marker-end="url(#a1)"/>
+        <rect x="292" y="46" width="96" height="44" fill="#fff" stroke="#ded9cf" stroke-dasharray="3 3"/>
+        <text x="340" y="66" font-size="12" fill="#3a3f4a" text-anchor="middle">ViT 编码器</text>
+        <text x="340" y="81" font-size="9.5" fill="#8d929d" text-anchor="middle" font-family="ui-monospace,monospace">冻结</text>
+        <line x1="388" y1="68" x2="410" y2="68" stroke="#9aa0aa" marker-end="url(#a1)"/>
+        <rect x="412" y="46" width="88" height="44" fill="#fff" stroke="#ded9cf"/>
+        <text x="456" y="73" font-size="12" fill="#3a3f4a" text-anchor="middle">投影层</text>
+        <line x1="500" y1="68" x2="522" y2="68" stroke="#9aa0aa" marker-end="url(#a1)"/>
+        <rect x="524" y="46" width="160" height="44" fill="#f0efeb" stroke="#c9c4b8"/>
+        <text x="604" y="66" font-size="12" fill="#3a3f4a" text-anchor="middle">LLM 主干</text>
+        <text x="604" y="81" font-size="9.5" fill="#8d929d" text-anchor="middle" font-family="ui-monospace,monospace">纯文本预训练</text>
+        <line x1="684" y1="68" x2="706" y2="68" stroke="#9aa0aa" marker-end="url(#a1)"/>
+        <rect x="708" y="46" width="86" height="44" fill="#fff" stroke="#ded9cf"/>
+        <text x="751" y="73" font-size="12" fill="#3a3f4a" text-anchor="middle">文本输出</text>
+        <text x="822" y="62" font-size="11.5" fill="#8d929d">主干看不见像素，</text>
+        <text x="822" y="80" font-size="11.5" fill="#8d929d">模态在入口已被压平</text>
+        <text x="176" y="122" font-size="10.5" fill="#a8402c" font-family="ui-monospace,monospace">freeze: vision tower + LLM … train: projector only</text>
+
+        <!-- row2 -->
+        <rect x="0" y="148" width="1000" height="142" fill="#ffffff"/>
+        <text x="22" y="186" font-size="12" font-weight="700" fill="#155e6e" font-family="ui-monospace,monospace">②</text>
+        <text x="40" y="186" font-size="12.5" font-weight="700" fill="#12141a" letter-spacing="0.06em">MID FUSION</text>
+        <text x="22" y="208" font-size="11.5" fill="#5c626f">桥接 · 注入</text>
+        <text x="22" y="228" font-size="10.5" fill="#8d929d" font-family="ui-monospace,monospace">2023 — 2026 主流</text>
+
+        <rect x="176" y="176" width="84" height="44" fill="#fff" stroke="#ded9cf"/>
+        <text x="218" y="203" font-size="12" fill="#3a3f4a" text-anchor="middle">图像</text>
+        <line x1="260" y1="198" x2="278" y2="198" stroke="#9aa0aa" marker-end="url(#a1)"/>
+        <rect x="280" y="176" width="76" height="44" fill="#fff" stroke="#ded9cf"/>
+        <text x="318" y="203" font-size="12" fill="#3a3f4a" text-anchor="middle">ViT</text>
+        <line x1="356" y1="198" x2="374" y2="198" stroke="#9aa0aa" marker-end="url(#a1)"/>
+        <rect x="376" y="176" width="140" height="44" fill="#e8f1f2" stroke="#155e6e"/>
+        <text x="446" y="196" font-size="11.5" fill="#155e6e" text-anchor="middle">C：交叉注意力</text>
+        <text x="446" y="211" font-size="11.5" fill="#155e6e" text-anchor="middle">/ 深层 Adapter</text>
+        <line x1="516" y1="198" x2="546" y2="198" stroke="#155e6e" marker-end="url(#a1)"/>
+        <rect x="548" y="164" width="180" height="68" fill="#f7f9f9" stroke="#155e6e" stroke-dasharray="4 3"/>
+        <text x="638" y="188" font-size="12" fill="#3a3f4a" text-anchor="middle">联合主干</text>
+        <text x="638" y="206" font-size="10.5" fill="#5c626f" text-anchor="middle">注入发生在中间层</text>
+        <text x="638" y="221" font-size="9.5" fill="#8d929d" text-anchor="middle" font-family="ui-monospace,monospace">modality-aware</text>
+        <line x1="728" y1="198" x2="750" y2="198" stroke="#9aa0aa" marker-end="url(#a1)"/>
+        <rect x="752" y="176" width="84" height="44" fill="#fff" stroke="#ded9cf"/>
+        <text x="794" y="203" font-size="12" fill="#3a3f4a" text-anchor="middle">文本</text>
+        <text x="854" y="192" font-size="11.5" fill="#8d929d">结构不对称仍在</text>
+        <text x="854" y="210" font-size="11.5" fill="#8d929d">但已能看到跨模态相关</text>
+        <text x="176" y="252" font-size="10.5" fill="#155e6e" font-family="ui-monospace,monospace">freeze: progressive unfreezing · diff-LR · decoupled loss</text>
+        <text x="176" y="274" font-size="10.5" fill="#8d929d" font-family="ui-monospace,monospace">例：Flamingo · BLIP-2 · LLaVA · CogVLM · Qwen3-VL</text>
+
+        <!-- row3 -->
+        <rect x="0" y="298" width="1000" height="160" fill="#fcfbf8"/>
+        <text x="22" y="336" font-size="12" font-weight="700" fill="#8d6b1f" font-family="ui-monospace,monospace">③</text>
+        <text x="40" y="336" font-size="12.5" font-weight="700" fill="#12141a" letter-spacing="0.06em">EARLY FUSION</text>
+        <text x="22" y="358" font-size="11.5" fill="#5c626f">出生即多模态</text>
+        <text x="22" y="378" font-size="10.5" fill="#8d929d" font-family="ui-monospace,monospace">2024 — 至今</text>
+
+        <rect x="176" y="318" width="84" height="34" fill="#fff" stroke="#ded9cf"/>
+        <text x="218" y="340" font-size="12" fill="#3a3f4a" text-anchor="middle">图像</text>
+        <rect x="176" y="364" width="84" height="34" fill="#fff" stroke="#ded9cf"/>
+        <text x="218" y="386" font-size="12" fill="#3a3f4a" text-anchor="middle">文本</text>
+        <line x1="260" y1="335" x2="284" y2="352" stroke="#9aa0aa" marker-end="url(#a1)"/>
+        <line x1="260" y1="381" x2="284" y2="364" stroke="#9aa0aa" marker-end="url(#a1)"/>
+        <rect x="286" y="318" width="116" height="80" fill="#f6f2e4" stroke="#8d6b1f"/>
+        <text x="344" y="350" font-size="12" fill="#12141a" text-anchor="middle">统一 tokenizer</text>
+        <text x="344" y="367" font-size="10.5" fill="#8d6b1f" text-anchor="middle" font-family="ui-monospace,monospace">T(m₁) … T(mₙ)</text>
+        <line x1="402" y1="358" x2="424" y2="358" stroke="#9aa0aa" marker-end="url(#a1)"/>
+        <rect x="426" y="318" width="300" height="80" fill="#fff" stroke="#ded9cf"/>
+        <text x="440" y="336" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">one sequence, one vocabulary</text>
+        <g fill="#155e6e" opacity="0.85">
+          <rect x="440" y="352" width="26" height="20"/><rect x="472" y="352" width="26" height="20"/>
+          <rect x="504" y="352" width="26" height="20"/>
+        </g>
+        <g fill="#dcd8cd">
+          <rect x="542" y="352" width="26" height="20"/><rect x="574" y="352" width="26" height="20"/>
+          <rect x="606" y="352" width="26" height="20"/><rect x="638" y="352" width="26" height="20"/>
+          <rect x="670" y="352" width="26" height="20"/>
+        </g>
+        <text x="440" y="390" font-size="10" fill="#5c626f">视觉 token（3）＋ 文本 token（5），同栈无差别</text>
+        <line x1="726" y1="358" x2="752" y2="358" stroke="#8d6b1f" marker-end="url(#a1)"/>
+        <rect x="754" y="330" width="110" height="56" fill="#f6f2e4" stroke="#8d6b1f"/>
+        <text x="809" y="354" font-size="12" fill="#12141a" text-anchor="middle">单一 Transformer</text>
+        <text x="809" y="371" font-size="9.5" fill="#8d6b1f" text-anchor="middle" font-family="ui-monospace,monospace">one objective</text>
+        <text x="890" y="346" font-size="10.5" fill="#8d929d">共享梯度</text>
+        <text x="890" y="364" font-size="10.5" fill="#8d929d">耦合最深</text>
+        <text x="176" y="428" font-size="10.5" fill="#8d6b1f" font-family="ui-monospace,monospace">joint from step 0 · QK-Norm + z-loss 是收敛前提</text>
+        <text x="176" y="448" font-size="10.5" fill="#8d929d" font-family="ui-monospace,monospace">例：Chameleon · Emu3 · AnyGPT · Gemini · Emu3.5</text>
+      </svg>
+      </div>
+      <figcaption>三档的形式化定义来自 NMM 路线图<sup><a href="#r1">[1]</a></sup>：late 为 G(LLM({P<sub>i</sub>(E<sub>i</sub>(m<sub>i</sub>))}))，mid 为 Backbone(C(E<sub>1</sub>(m<sub>1</sub>), …))，early 为 Transformer(∪<sub>i</sub> T(m<sub>i</sub>))。注意 mid-fusion 的 C 是注入算子（交叉注意力或深层适配器）：它让主干看到跨模态相关性，但模态边界与结构不对称仍在，所以仍不算 born-native。</figcaption>
+    </figure>
+
+    <div class="note">
+      <b>易混淆点：</b>"原生"在厂商口径里至少有三种含义——① 预训练数据从一开始就含多模态（数据层面）；② 单一主干、无独立编码器（架构层面）；③ 单一模型同时理解和生成（能力层面）。三者互相独立。一个 mid-fusion 模型可以同时满足 ① 和 ③，但按结构定义仍不是 born-native。判断时先问是哪一层。
+    </div>
+    <div class="quiz" data-answer="B">
+      <div class="quiz-head"><span class="quiz-tag">CHECK 00</span><span class="quiz-n">单选 · 点击选项即判</span></div>
+      <p class="quiz-q">某模型在预训练阶段就混合图文数据联合训练，但主干接收的仍是 ViT 输出的 patch 特征——这个 ViT 先在 CLIP 上独立预训练过。按本文判据，它属于哪一档？</p>
+      <ul class="opts">
+        <li class="opt" data-k="A"><span class="k">A</span><span class="t">数据层面原生，结构上算 early-fusion</span><span class="mk"></span></li>
+        <li class="opt" data-k="B"><span class="k">B</span><span class="t">结构上仍是 mid-fusion，因为主干之前有独立预训练的视觉编码器</span><span class="mk"></span></li>
+        <li class="opt" data-k="C"><span class="k">C</span><span class="t">取决于参数量，过百亿即算原生</span><span class="mk"></span></li>
+        <li class="opt" data-k="D"><span class="k">D</span><span class="t">late-fusion，因为它用了对比学习预训练的塔</span><span class="mk"></span></li>
+      </ul>
+      <details class="quiz-key"><summary>解析</summary><p>判据只有一条：<b>主干是否直接以原始模态信号为输入</b>。联合训练解决的是"数据层面原生"，不改变"主干之前存在独立编码器"这一结构事实。投影器桥接在本文档位归属为 mid（见 §5 场景表里 LLaVA-1.5 的归类）。</p></details>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= §1 ================= -->
+<section id="s1">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">01</span><h2>谱系：五条路线不是替代关系，是并行下沉</h2></div>
+    <p class="sec-sub">纵向是年份，横向是路线。注意 2024 年之后的变化——新模型不再"取代"旧范式，而是把旧范式的产物（预训练视觉塔、对比学习表征、扩散解码器）当作组件吸收进统一主干。</p>
+
+    <figure class="fig">
+      <div class="fig-head"><h3>图 2 · 多模态模型谱系（2020 — 2026）</h3><span>按融合机制分道</span></div>
+      <div class="fig-scroll">
+      <svg viewBox="0 0 1000 560" role="img" aria-label="多模态模型演进谱系图">
+        <defs>
+          <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#b8b3a6"/>
+          </marker>
+        </defs>
+
+        <!-- 年份轴 -->
+        <line x1="120" y1="40" x2="960" y2="40" stroke="#ded9cf"/>
+        <g font-size="10.5" fill="#8d929d" font-family="ui-monospace,monospace" text-anchor="middle">
+          <text x="150" y="30">2020</text><text x="285" y="30">2021</text><text x="420" y="30">2022</text>
+          <text x="555" y="30">2023</text><text x="690" y="30">2024</text><text x="825" y="30">2025</text><text x="950" y="30">2026</text>
+        </g>
+        <g stroke="#eae7e0">
+          <line x1="150" y1="40" x2="150" y2="530"/><line x1="285" y1="40" x2="285" y2="530"/>
+          <line x1="420" y1="40" x2="420" y2="530"/><line x1="555" y1="40" x2="555" y2="530"/>
+          <line x1="690" y1="40" x2="690" y2="530"/><line x1="825" y1="40" x2="825" y2="530"/>
+          <line x1="950" y1="40" x2="950" y2="530"/>
+        </g>
+
+        <!-- lane A -->
+        <text x="20" y="86" font-size="11.5" font-weight="700" fill="#a8402c">A · 双塔对比</text>
+        <text x="20" y="102" font-size="10" fill="#8d929d">表征对齐</text>
+        <line x1="120" y1="90" x2="960" y2="90" stroke="#f0e6e2" stroke-width="10"/>
+        <circle cx="150" cy="90" r="5" fill="#a8402c"/>
+        <text x="150" y="72" font-size="10" fill="#5c626f" text-anchor="middle">ViT</text>
+        <circle cx="292" cy="90" r="5.5" fill="#a8402c"/>
+        <text x="292" y="72" font-size="10.5" fill="#12141a" text-anchor="middle" font-weight="600">CLIP</text>
+        <circle cx="330" cy="90" r="4.5" fill="#a8402c"/>
+        <text x="330" y="112" font-size="9.5" fill="#5c626f" text-anchor="middle">ALIGN</text>
+        <circle cx="470" cy="90" r="4.5" fill="#a8402c"/>
+        <text x="470" y="72" font-size="9.5" fill="#5c626f" text-anchor="middle">SigLIP</text>
+        <text x="600" y="74" font-size="10" fill="#a8a49a">→ 退为"视觉塔供应商"</text>
+
+        <!-- lane B -->
+        <text x="20" y="176" font-size="11.5" font-weight="700" fill="#155e6e">B · 桥接注入</text>
+        <text x="20" y="192" font-size="10" fill="#8d929d">冻结主干 + 算子</text>
+        <line x1="120" y1="180" x2="960" y2="180" stroke="#e6f0f1" stroke-width="10"/>
+        <circle cx="425" cy="180" r="5.5" fill="#155e6e"/>
+        <text x="425" y="162" font-size="10.5" fill="#12141a" text-anchor="middle" font-weight="600">Flamingo</text>
+        <text x="425" y="202" font-size="9" fill="#5c626f" text-anchor="middle">Perceiver Resampler</text>
+        <circle cx="560" cy="180" r="4.5" fill="#155e6e"/>
+        <text x="560" y="162" font-size="9.5" fill="#5c626f" text-anchor="middle">BLIP-2 / Q-Former</text>
+        <circle cx="575" cy="180" r="4.5" fill="#155e6e"/>
+        <text x="575" y="202" font-size="9.5" fill="#5c626f" text-anchor="middle">LLaVA</text>
+        <circle cx="645" cy="180" r="4.5" fill="#155e6e"/>
+        <text x="645" y="162" font-size="9.5" fill="#5c626f" text-anchor="middle">CogVLM</text>
+        <circle cx="880" cy="180" r="5" fill="#155e6e"/>
+        <text x="880" y="162" font-size="10" fill="#12141a" text-anchor="middle" font-weight="600">Qwen3-VL</text>
+        <text x="880" y="202" font-size="9" fill="#5c626f" text-anchor="middle">动态分辨率 + M-RoPE</text>
+        <path d="M580,172 C660,150 780,150 860,170" stroke="#b8b3a6" stroke-dasharray="3 3" fill="none" marker-end="url(#a2)"/>
+
+        <!-- lane C -->
+        <text x="20" y="286" font-size="11.5" font-weight="700" fill="#8d6b1f">C · 离散早融合</text>
+        <text x="20" y="302" font-size="10" fill="#8d929d">统一 token 空间</text>
+        <line x1="120" y1="290" x2="960" y2="290" stroke="#f5f0df" stroke-width="10"/>
+        <circle cx="548" cy="290" r="5" fill="#8d6b1f"/>
+        <text x="548" y="270" font-size="9.5" fill="#5c626f" text-anchor="middle">Kosmos-1</text>
+        <circle cx="688" cy="290" r="6" fill="#8d6b1f"/>
+        <text x="688" y="270" font-size="10.5" fill="#12141a" text-anchor="middle" font-weight="600">Chameleon</text>
+        <text x="688" y="311" font-size="9" fill="#5c626f" text-anchor="middle">VQ 图像 token</text>
+        <circle cx="768" cy="290" r="5" fill="#8d6b1f"/>
+        <text x="768" y="270" font-size="9.5" fill="#5c626f" text-anchor="middle">Emu3</text>
+        <circle cx="884" cy="290" r="5.5" fill="#8d6b1f"/>
+        <text x="884" y="270" font-size="10" fill="#12141a" text-anchor="middle" font-weight="600">Emu3.5</text>
+        <text x="884" y="311" font-size="9" fill="#5c626f" text-anchor="middle">34B · world learner</text>
+
+        <!-- lane D -->
+        <text x="20" y="406" font-size="11.5" font-weight="700" fill="#6b4a8a">D · 统一理解生成</text>
+        <text x="20" y="422" font-size="10" fill="#8d929d">AR + 扩散双目标</text>
+        <line x1="120" y1="410" x2="960" y2="410" stroke="#efe8f2" stroke-width="10"/>
+        <circle cx="690" cy="410" r="5" fill="#6b4a8a"/>
+        <text x="690" y="392" font-size="9.5" fill="#5c626f" text-anchor="middle">Transfusion</text>
+        <circle cx="730" cy="410" r="4.5" fill="#6b4a8a"/>
+        <text x="730" y="436" font-size="9" fill="#5c626f" text-anchor="middle">Show-o</text>
+        <circle cx="772" cy="410" r="5" fill="#6b4a8a"/>
+        <text x="772" y="392" font-size="9.5" fill="#5c626f" text-anchor="middle">Janus</text>
+        <circle cx="845" cy="410" r="5.5" fill="#6b4a8a"/>
+        <text x="845" y="392" font-size="10" fill="#12141a" text-anchor="middle" font-weight="600">Janus-Pro</text>
+        <circle cx="882" cy="410" r="4.5" fill="#6b4a8a"/>
+        <text x="882" y="436" font-size="9" fill="#5c626f" text-anchor="middle">BAGEL</text>
+
+        <!-- lane E -->
+        <text x="20" y="486" font-size="11.5" font-weight="700" fill="#2f6b4f">E · 全模态流式</text>
+        <text x="20" y="502" font-size="10" fill="#8d929d">any-to-any</text>
+        <line x1="120" y1="490" x2="960" y2="490" stroke="#e6f2ea" stroke-width="10"/>
+        <circle cx="710" cy="490" r="5" fill="#2f6b4f"/>
+        <text x="710" y="472" font-size="9.5" fill="#5c626f" text-anchor="middle">Moshi</text>
+        <circle cx="775" cy="490" r="5" fill="#2f6b4f"/>
+        <text x="775" y="472" font-size="9.5" fill="#5c626f" text-anchor="middle">GPT-4o</text>
+        <circle cx="800" cy="490" r="5" fill="#2f6b4f"/>
+        <text x="800" y="512" font-size="9" fill="#5c626f" text-anchor="middle">Qwen2.5-Omni</text>
+        <circle cx="888" cy="490" r="5" fill="#2f6b4f"/>
+        <text x="888" y="472" font-size="9.5" fill="#5c626f" text-anchor="middle">Qwen3-Omni</text>
+
+        <!-- 收束框 -->
+        <rect x="120" y="524" width="840" height="30" fill="#12141a"/>
+        <text x="540" y="544" font-size="11" fill="#f6f5f1" text-anchor="middle" font-family="ui-monospace,monospace" letter-spacing="0.04em">2026 · NMM Roadmap：mid-fusion / early-fusion × M2T / M2G / M2M 二维定位</text>
+      </svg>
+      </div>
+      <figcaption>节点位置按首次公开时间近似排布；同一年内的相对横向位置仅表示先后，不代表精确月份。Gemini 系列属 early-fusion 但未公开架构细节，故不单列节点，详见 §3 与参考文献<sup><a href="#r1">[1]</a><a href="#r14">[14]</a><a href="#r20">[20]</a></sup>。</figcaption>
+    </figure>
+
+    <div class="ep-lead">把谱系竖着切，每一刀都是当时的最优解</div>
+    <div class="epochs">
+      <div class="ep">
+        <div class="ep-t">2021</div>
+        <div class="ep-h">对齐到同一表征空间</div>
+        <p>当时没有能吃的多模态主干，最优解只能是 CLIP 式图文对齐——<b>先把两个模态放进同一个空间</b>，任务本身留到下游做。</p>
+      </div>
+      <div class="ep">
+        <div class="ep-t">2022 — 2023</div>
+        <div class="ep-h">别动主干，只加接口</div>
+        <p>重训主干太贵。Flamingo 插交叉注意力、BLIP-2 加 Q-Former、LLaVA 加两层 MLP，<b>都在解同一道题：怎么便宜地接上去</b>。</p>
+      </div>
+      <div class="ep">
+        <div class="ep-t">2024 —</div>
+        <div class="ep-h">为共享梯度付学费</div>
+        <p>算力与数据同时到位，早融合才从"不划算"变成"可以试"——<b>是可行域被成本结构推开，不是范式说服了谁</b>。</p>
+      </div>
+    </div>
+
+    <div class="prose split" style="margin-top:22px;">
+      <p>所以这几条路线不是教科书式的范式更替，而是<b>成本结构变化导致的可行域扩张</b>。今天 mid-fusion 仍然是绝大多数生产系统的选择，原因不在技术落伍，而在它把"视觉能力"做成了一块可替换、可独立升级的零件。</p>
+      <p><b>一个规模证据：</b>2025 年 11 月的 Gemini 3 Pro 模型卡把"原生多模态"写成了架构事实——稀疏 MoE、文本/图像/音频/视频统一输入、1M 上下文，并明确声明"不是前代模型的微调"<sup><a href="#r15">[15]</a></sup>。这是目前公开可查的最大规模早融合部署声明，但具体融合方式与视觉接口形态仍未披露——也正因如此，它无法被归入任何一张谱系图的确定位置。</p>
+    </div>
+
+    <div class="quiz" data-answer="A">
+      <div class="quiz-head"><span class="quiz-tag">CHECK 01</span><span class="quiz-n">单选 · 点击选项即判</span></div>
+      <p class="quiz-q">谱系图里说 CLIP 这类双塔对比模型后来"下沉"了，指的是什么？</p>
+      <ul class="opts">
+        <li class="opt" data-k="A"><span class="k">A</span><span class="t">自身不再是端到端方案，退为视觉塔供应商，编码器成了各流派的共用零件</span><span class="mk"></span></li>
+        <li class="opt" data-k="B"><span class="k">B</span><span class="t">被后来的模型取代，已退出实际使用</span><span class="mk"></span></li>
+        <li class="opt" data-k="C"><span class="k">C</span><span class="t">演化成了单一主干的 early-fusion 架构</span><span class="mk"></span></li>
+        <li class="opt" data-k="D"><span class="k">D</span><span class="t">被扩散模型取代，转去做图像生成</span><span class="mk"></span></li>
+      </ul>
+      <details class="quiz-key"><summary>解析</summary><p>下沉不是淘汰，是<b>降级为组件</b>。2024 年之后的新模型不再"取代"旧范式，而是把旧范式的产物（预训练视觉塔、对比学习表征、扩散解码器）吸收进统一主干——这正是后两条路线能成立的前提。</p></details>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= §2 ================= -->
+<section id="s2">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">02</span><h2>五条流派的机制差异</h2></div>
+    <p class="sec-sub">每一行对应一种"把视觉塞进语言模型"的解法。看三件事就够：接口放在哪、梯度流过谁、信息在哪一步有损。</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th style="width:13%">流派</th><th style="width:17%">代表</th><th style="width:22%">核心机制</th><th style="width:18%">梯度/冻结</th><th style="width:15%">强项</th><th style="width:15%">结构性短板</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="k">双塔对比</td>
+            <td>CLIP<sup><a href="#r4">[4]</a></sup><br>SigLIP<sup><a href="#r5">[5]</a></sup></td>
+            <td>图文各自编码，InfoNCE / sigmoid 对比损失拉近配对样本。无生成、无交互。</td>
+            <td>两塔联合训练；<br>下游作冻结特征</td>
+            <td>零样本检索与分类极强，是后续所有视觉塔的来源</td>
+            <td>无生成能力；细粒度计数与空间关系弱</td>
+          </tr>
+          <tr>
+            <td class="k">交叉注意力注入</td>
+            <td>Flamingo<sup><a href="#r6">[6]</a></sup></td>
+            <td>Perceiver Resampler 把变长视觉特征压成固定 query，在冻结 LM 层间插入门控 cross-attention，门控初始化为 0。</td>
+            <td>视觉塔 + LM 全冻；<br>只训新增模块</td>
+            <td>少样本强，多图交错输入天然支持</td>
+            <td>新增参数与推理开销大；门控=0 起步，训练早期几乎不学习</td>
+          </tr>
+          <tr>
+            <td class="k">投影器桥接</td>
+            <td>BLIP-2<sup><a href="#r7">[7]</a></sup><br>LLaVA<sup><a href="#r8">[8]</a></sup></td>
+            <td>Q-Former 或 2 层 MLP 把视觉特征映射进词嵌入空间，接在 LM 输入层。两阶段：先对齐、再指令微调。</td>
+            <td>阶段一全冻只训投影；<br>阶段二解冻 LM</td>
+            <td>成本最低、迭代最快，工程生态最成熟</td>
+            <td>投影层是信息瓶颈；视觉分辨率与 token 数强耦合</td>
+          </tr>
+          <tr>
+            <td class="k">离散早融合</td>
+            <td>Chameleon<sup><a href="#r9">[9]</a></sup><br>Emu3<sup><a href="#r10">[10]</a></sup></td>
+            <td>VQ tokenizer 把图像压成离散码，与文本共享词表，单一 Transformer 做 next-token prediction。</td>
+            <td>从第 0 步全参数联合；<br>QK-Norm / z-loss 保稳</td>
+            <td>跨模态耦合最深，能生成图文交错文档</td>
+            <td>离散化损失细粒度感知；训练贵且不稳；模态集窄</td>
+          </tr>
+          <tr>
+            <td class="k">统一理解生成</td>
+            <td>Transfusion<sup><a href="#r11">[11]</a></sup><br>Janus-Pro<sup><a href="#r3">[3]</a></sup><br>BAGEL<sup><a href="#r12">[12]</a></sup></td>
+            <td>文本走 AR、图像走扩散（或在同一主干上分专家），双损失联合优化；Janus 进一步把理解与生成的视觉编码解耦。</td>
+            <td>全参数联合；<br>双损失加权</td>
+            <td>一份权重同时理解与生成，生成保真度显著优于纯离散 AR</td>
+            <td>理解—生成互相拉扯；损失配比与数据配比都敏感</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note teal" style="margin-top:22px;">
+      <b>为什么"投影器桥接"能活这么久：</b>它把多模态问题降解成了"表征翻译"问题——语言能力由成熟的文本预训练保证，视觉能力由成熟的对比学习保证，中间只留一个几十 M 参数的翻译层。风险被局部化，坏了好回滚。这是工程判断，不是学术判断，但它解释了 2023—2025 年产业界的实际选择。
+    </div>
+    <div class="quiz" data-answer="D">
+      <div class="quiz-head"><span class="quiz-tag">CHECK 02</span><span class="quiz-n">单选 · 点击选项即判</span></div>
+      <p class="quiz-q">投影器桥接（BLIP-2 / LLaVA 一系）在 2023—2025 年的产业界长期占优，最根本的原因是什么？</p>
+      <ul class="opts">
+        <li class="opt" data-k="A"><span class="k">A</span><span class="t">表征对齐效果优于交叉注意力注入</span><span class="mk"></span></li>
+        <li class="opt" data-k="B"><span class="k">B</span><span class="t">天然支持图文任意交错的输出</span><span class="mk"></span></li>
+        <li class="opt" data-k="C"><span class="k">C</span><span class="t">参数量最大，容量上限最高</span><span class="mk"></span></li>
+        <li class="opt" data-k="D"><span class="k">D</span><span class="t">把多模态问题降解成表征翻译，风险被局部化，视觉能力可独立替换升级</span><span class="mk"></span></li>
+      </ul>
+      <details class="quiz-key"><summary>解析</summary><p>语言能力交给成熟的文本预训练、视觉能力交给成熟的对比学习，中间只留几十 M 参数的翻译层——<b>坏了好回滚</b>。这是成本结构上的优势，不是能力上限上的优势；能力上限恰恰是它的短板（投影层即信息瓶颈）。</p></details>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= §3 ================= -->
+<section id="s3">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">03</span><h2>架构解剖：五个可替换部件，五个代价点</h2></div>
+    <p class="sec-sub">不同路线吵得最凶的其实不是"要不要原生"，而是这五个部件怎么选。每个部件只有两个主流答案，且每个答案都带一条结构性代价——没有同时最优的组合。</p>
+
+    <figure class="fig">
+      <div class="fig-head"><h3>图 3 · 一次前向经过的五个决策点</h3><span>从上到下 = 数据流顺序</span></div>
+      <div class="fig-scroll">
+      <svg viewBox="0 0 1000 500" role="img" aria-label="原生多模态架构的五个部件与取舍">
+        <defs>
+          <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#c9c4b8"/>
+          </marker>
+        </defs>
+
+        <!-- 顶部流 -->
+        <g font-size="10.5" font-family="ui-monospace,monospace" fill="#8d929d">
+          <text x="30" y="22">INPUT</text>
+          <text x="200" y="22">TOKENIZE</text>
+          <text x="430" y="22">ENCODE</text>
+          <text x="640" y="22">ROUTE</text>
+          <text x="830" y="22">DECODE</text>
+        </g>
+        <line x1="30" y1="30" x2="970" y2="30" stroke="#ded9cf"/>
+
+        <!-- 行 1 -->
+        <g>
+          <rect x="30" y="46" width="140" height="62" fill="#12141a"/>
+          <text x="46" y="70" font-size="9.5" fill="#a8a49a" font-family="ui-monospace,monospace">01</text>
+          <text x="46" y="90" font-size="12.5" fill="#f6f5f1" font-weight="600">视觉接口</text>
+          <rect x="186" y="46" width="168" height="62" fill="#f6f2e4" stroke="#8d6b1f"/>
+          <text x="200" y="70" font-size="11.5" fill="#12141a">VQ / FSQ 离散码本</text>
+          <text x="200" y="88" font-size="10" fill="#8d6b1f" font-family="ui-monospace,monospace">共享词表，可直接生成</text>
+          <rect x="364" y="46" width="168" height="62" fill="#e8f1f2" stroke="#155e6e"/>
+          <text x="378" y="70" font-size="11.5" fill="#12141a">ViT 连续特征 + 投影</text>
+          <text x="378" y="88" font-size="10" fill="#155e6e" font-family="ui-monospace,monospace">感知保真，但无法直接输出</text>
+          <text x="556" y="70" font-size="11" fill="#5c626f">离散化要交<tspan font-weight="600" fill="#12141a">信息税</tspan>：码本容量压缩了纹理与文字细节；</text>
+          <text x="556" y="88" font-size="11" fill="#5c626f">连续特征保住感知，却必须另配解码器才能生成。</text>
+        </g>
+
+        <!-- 行 2 -->
+        <g>
+          <rect x="30" y="136" width="140" height="62" fill="#12141a"/>
+          <text x="46" y="160" font-size="9.5" fill="#a8a49a" font-family="ui-monospace,monospace">02</text>
+          <text x="46" y="180" font-size="12.5" fill="#f6f5f1" font-weight="600">位置编码</text>
+          <rect x="186" y="136" width="168" height="62" fill="#fff" stroke="#ded9cf"/>
+          <text x="200" y="160" font-size="11.5" fill="#12141a">1D RoPE</text>
+          <text x="200" y="178" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">序列位置，模态无关</text>
+          <rect x="364" y="136" width="168" height="62" fill="#fff" stroke="#ded9cf"/>
+          <text x="378" y="160" font-size="11.5" fill="#12141a">3D / 时空分解 RoPE</text>
+          <text x="378" y="178" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">t, h, w 分轴编码</text>
+          <text x="556" y="160" font-size="11" fill="#5c626f">视频与变分辨率输入一旦上量，<tspan font-weight="600" fill="#12141a">1D 位置就撑不住</tspan>：</text>
+          <text x="556" y="178" font-size="11" fill="#5c626f">同一帧内相邻 patch 与跨秒同位置 patch 不该共享同一个索引语义。</text>
+        </g>
+
+        <!-- 行 3 -->
+        <g>
+          <rect x="30" y="226" width="140" height="62" fill="#12141a"/>
+          <text x="46" y="250" font-size="9.5" fill="#a8a49a" font-family="ui-monospace,monospace">03</text>
+          <text x="46" y="270" font-size="12.5" fill="#f6f5f1" font-weight="600">注意力拓扑</text>
+          <rect x="186" y="226" width="168" height="62" fill="#fff" stroke="#ded9cf"/>
+          <text x="200" y="250" font-size="11.5" fill="#12141a">全序列自注意力</text>
+          <text x="200" y="268" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">模态无标记，等价 token</text>
+          <rect x="364" y="226" width="168" height="62" fill="#fff" stroke="#ded9cf"/>
+          <text x="378" y="250" font-size="11.5" fill="#12141a">分组掩码 / 交叉注意力</text>
+          <text x="378" y="268" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">保留模态边界</text>
+          <text x="556" y="250" font-size="11" fill="#5c626f">全序列是"真原生"的前提，代价是<tspan font-weight="600" fill="#12141a">序列长度爆炸</tspan>：</text>
+          <text x="556" y="268" font-size="11" fill="#5c626f">一张高分辨率图能顶几千 token，视频直接进百万级。</text>
+        </g>
+
+        <!-- 行 4 -->
+        <g>
+          <rect x="30" y="316" width="140" height="62" fill="#12141a"/>
+          <text x="46" y="340" font-size="9.5" fill="#a8a49a" font-family="ui-monospace,monospace">04</text>
+          <text x="46" y="360" font-size="12.5" fill="#f6f5f1" font-weight="600">容量分配</text>
+          <rect x="186" y="316" width="168" height="62" fill="#fff" stroke="#ded9cf"/>
+          <text x="200" y="340" font-size="11.5" fill="#12141a">Dense 共享参数</text>
+          <text x="200" y="358" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">所有模态抢同一批权重</text>
+          <rect x="364" y="316" width="168" height="62" fill="#e8f1f2" stroke="#155e6e"/>
+          <text x="378" y="340" font-size="11.5" fill="#12141a">MoE 模态特化</text>
+          <text x="378" y="358" font-size="10" fill="#155e6e" font-family="ui-monospace,monospace">专家在首尾层最专化</text>
+          <text x="556" y="340" font-size="11" fill="#5c626f">457 个模型的实验显示：加 MoE 让模型学到<tspan font-weight="600" fill="#12141a">按模态分化的权重</tspan>，</text>
+          <text x="556" y="358" font-size="11" fill="#5c626f">提升显著；且稀疏模型更该加 token 而非加激活参数。</text>
+        </g>
+
+        <!-- 行 5 -->
+        <g>
+          <rect x="30" y="406" width="140" height="62" fill="#12141a"/>
+          <text x="46" y="430" font-size="9.5" fill="#a8a49a" font-family="ui-monospace,monospace">05</text>
+          <text x="46" y="450" font-size="12.5" fill="#f6f5f1" font-weight="600">输出目标</text>
+          <rect x="186" y="406" width="168" height="62" fill="#f6f2e4" stroke="#8d6b1f"/>
+          <text x="200" y="430" font-size="11.5" fill="#12141a">词表 softmax（NTP）</text>
+          <text x="200" y="448" font-size="10" fill="#8d6b1f" font-family="ui-monospace,monospace">一个目标函数走到底</text>
+          <rect x="364" y="406" width="168" height="62" fill="#efe8f2" stroke="#6b4a8a"/>
+          <text x="378" y="430" font-size="11.5" fill="#12141a">扩散 / 流匹配头</text>
+          <text x="378" y="448" font-size="10" fill="#6b4a8a" font-family="ui-monospace,monospace">连续空间去噪，保真度高</text>
+          <text x="556" y="430" font-size="11" fill="#5c626f">纯 AR 生成图像已能 work，但<tspan font-weight="600" fill="#12141a">保真度打不过扩散</tspan>；</text>
+          <text x="556" y="448" font-size="11" fill="#5c626f">双损失混合是当下的折中，代价是配比难调、训练不稳。</text>
+        </g>
+      </svg>
+      </div>
+      <figcaption>部件 01 / 05 的取舍是"理解—生成两难"的直接体现；部件 03 / 04 的取舍决定推理成本。部件 02 常被忽略，但它往往是长视频能力的天花板所在<sup><a href="#r1">[1]</a><a href="#r2">[2]</a></sup>。</figcaption>
+    </figure>
+
+    <div class="note">
+      <b>一个反直觉的细节：</b>Janus 系列的解法不是"选一边"，而是<b>装两套视觉编码</b>——理解用 SigLIP 的连续特征，生成用 VQ 的离散 token，两路各自进同一个 Transformer，输出侧按任务切换<sup><a href="#r3">[3]</a><a href="#r13">[13]</a></sup>。这直接承认了"一套表征同时服务理解与生成"在当前技术下不划算，用参数换解耦。
+    </div>
+    <div class="quiz" data-answer="A">
+      <div class="quiz-head"><span class="quiz-tag">CHECK 03</span><span class="quiz-n">单选 · 点击选项即判</span></div>
+      <p class="quiz-q">Janus 用两套视觉编码器：理解走 SigLIP 连续特征，生成走 VQ 离散 token。这个设计在机制上等于承认了什么？</p>
+      <ul class="opts">
+        <li class="opt" data-k="A"><span class="k">A</span><span class="t">单一表征同时服务理解与生成在当前技术下不划算，于是用参数换解耦</span><span class="mk"></span></li>
+        <li class="opt" data-k="B"><span class="k">B</span><span class="t">扩散头可以被纯自回归完全替代</span><span class="mk"></span></li>
+        <li class="opt" data-k="C"><span class="k">C</span><span class="t">离散 token 的生成保真度已经超过扩散</span><span class="mk"></span></li>
+        <li class="opt" data-k="D"><span class="k">D</span><span class="t">视觉编码器越多，跨模态耦合越深</span><span class="mk"></span></li>
+      </ul>
+      <details class="quiz-key"><summary>解析</summary><p>理解要连续高保真特征，生成要离散可预测 token，方向相反——这就是"理解—生成两难"。Janus 没有解决两难，而是<b>绕开</b>它：装两套编码，输出侧按任务切换，代价是参数与对齐复杂度。</p></details>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= §4 ================= -->
+<section id="s4">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">04</span><h2>训练范式：融合深度决定训练签名</h2></div>
+    <p class="sec-sub">同一个五阶段流水线，mid-fusion 与 early-fusion 在每一步的做法几乎相反。这不是调参差异，是"能不能单独动某一块"的结构性差异。</p>
+
+    <figure class="fig">
+      <div class="fig-head"><h3>图 4 · 五阶段流水线 × 两种融合制度</h3><span>PT → Mid-train → SFT → RL</span></div>
+      <div class="fig-scroll">
+      <svg viewBox="0 0 1000 430" role="img" aria-label="原生多模态的训练流水线与两种融合制度的差异">
+        <defs>
+          <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#c9c4b8"/>
+          </marker>
+        </defs>
+
+        <!-- 阶段条 -->
+        <g>
+          <rect x="30" y="26" width="176" height="52" fill="#fbfaf6" stroke="#ded9cf"/>
+          <text x="44" y="48" font-size="9.5" fill="#8d929d" font-family="ui-monospace,monospace">STAGE 01</text>
+          <text x="44" y="66" font-size="12" fill="#12141a" font-weight="600">数据配比与课程</text>
+
+          <rect x="222" y="26" width="176" height="52" fill="#fbfaf6" stroke="#ded9cf"/>
+          <text x="236" y="48" font-size="9.5" fill="#8d929d" font-family="ui-monospace,monospace">STAGE 02</text>
+          <text x="236" y="66" font-size="12" fill="#12141a" font-weight="600">联合预训练</text>
+
+          <rect x="414" y="26" width="176" height="52" fill="#fbfaf6" stroke="#ded9cf"/>
+          <text x="428" y="48" font-size="9.5" fill="#8d929d" font-family="ui-monospace,monospace">STAGE 03</text>
+          <text x="428" y="66" font-size="12" fill="#12141a" font-weight="600">中训练 / 退火</text>
+
+          <rect x="606" y="26" width="176" height="52" fill="#fbfaf6" stroke="#ded9cf"/>
+          <text x="620" y="48" font-size="9.5" fill="#8d929d" font-family="ui-monospace,monospace">STAGE 04</text>
+          <text x="620" y="66" font-size="12" fill="#12141a" font-weight="600">SFT</text>
+
+          <rect x="798" y="26" width="176" height="52" fill="#fbfaf6" stroke="#ded9cf"/>
+          <text x="812" y="48" font-size="9.5" fill="#8d929d" font-family="ui-monospace,monospace">STAGE 05</text>
+          <text x="812" y="66" font-size="12" fill="#12141a" font-weight="600">RL / OPD</text>
+        </g>
+        <g stroke="#c9c4b8" marker-end="url(#a4)">
+          <line x1="206" y1="52" x2="216" y2="52"/><line x1="398" y1="52" x2="408" y2="52"/>
+          <line x1="590" y1="52" x2="600" y2="52"/><line x1="782" y1="52" x2="792" y2="52"/>
+        </g>
+
+        <!-- mid 泳道 -->
+        <text x="30" y="112" font-size="11" font-weight="700" fill="#155e6e" font-family="ui-monospace,monospace">MID</text>
+        <text x="30" y="128" font-size="10" fill="#8d929d">模态边界保留</text>
+        <rect x="30" y="140" width="944" height="112" fill="#f7fafa" stroke="#dfeaec"/>
+        <g font-size="10" fill="#2b4d55">
+          <text x="44" y="166">模态配比独立可调</text>
+          <text x="44" y="184">显式 curriculum</text>
+          <text x="236" y="166">渐进解冻</text>
+          <text x="236" y="184">差分学习率</text>
+          <text x="236" y="202">解耦损失</text>
+          <text x="428" y="166">高质量数据退火</text>
+          <text x="428" y="184">逐步提高视觉占比</text>
+          <text x="620" y="166">可重排冻结拓扑</text>
+          <text x="620" y="184">只训投影 / LoRA</text>
+          <text x="620" y="202">mid 独有的自由度</text>
+          <text x="812" y="166">策略范围受约束</text>
+          <text x="812" y="184">RL 只作用于语言侧</text>
+        </g>
+
+        <!-- early 泳道 -->
+        <text x="30" y="284" font-size="11" font-weight="700" fill="#8d6b1f" font-family="ui-monospace,monospace">EARLY</text>
+        <text x="30" y="300" font-size="10" fill="#8d929d">统一 token 空间</text>
+        <rect x="30" y="312" width="944" height="100" fill="#fdfbf4" stroke="#eee5cc"/>
+        <g font-size="10" fill="#5a4c22">
+          <text x="44" y="338">配比即超参</text>
+          <text x="44" y="356">失衡会在早期发散</text>
+          <text x="236" y="338">第 0 步全参联合</text>
+          <text x="236" y="356">QK-Norm + z-loss 前提</text>
+          <text x="428" y="338">只能调数据分布</text>
+          <text x="428" y="356">无结构可调项</text>
+          <text x="620" y="338">冻结拓扑固定</text>
+          <text x="620" y="356">只能重平衡配比</text>
+          <text x="812" y="338">OPD / MOPD 收口</text>
+          <text x="812" y="356">对抗 grounding-hack</text>
+        </g>
+
+        <text x="30" y="428" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">training signature: freezing topology · LR topology · loss formulation · stabilization · curriculum</text>
+      </svg>
+      </div>
+      <figcaption>五维训练签名与 OPD/MOPD 的提法见 NMM 路线图<sup><a href="#r1">[1]</a></sup>；QK-Norm 与 z-loss 作为早融合收敛前提，见 Chameleon 技术报告<sup><a href="#r9">[9]</a></sup>。OPD / MOPD 指 on-policy 蒸馏一类的后训练整合手段，用于把感知、推理、agent 能力收进同一主干。</figcaption>
+    </figure>
+
+    <div class="prose lead" style="margin-top:10px;">
+      <p><b>最值得记住的一条：</b>早融合把"训练制度"从可调变成了几乎不可调。mid-fusion 出问题时你能换冻结策略、换投影层、单独重训视觉塔；early-fusion 出问题时你只能改数据配比和损失权重，然后整跑一遍。这就是为什么它的试错成本高一个量级——不是算力贵，是<b>可观测性和可控粒度都没了</b>。</p>
+    </div>
+    <div class="quiz" data-answer="C">
+      <div class="quiz-head"><span class="quiz-tag">CHECK 04</span><span class="quiz-n">单选 · 点击选项即判</span></div>
+      <p class="quiz-q">早融合的试错成本比 mid-fusion 高一个量级，直接原因是什么？</p>
+      <ul class="opts">
+        <li class="opt" data-k="A"><span class="k">A</span><span class="t">单步训练的算力开销更大</span><span class="mk"></span></li>
+        <li class="opt" data-k="B"><span class="k">B</span><span class="t">需要更多人工标注的图文对</span><span class="mk"></span></li>
+        <li class="opt" data-k="C"><span class="k">C</span><span class="t">冻结拓扑与损失结构不可单独调整，出问题只能改数据配比后整跑一遍</span><span class="mk"></span></li>
+        <li class="opt" data-k="D"><span class="k">D</span><span class="t">不支持多机分布式训练</span><span class="mk"></span></li>
+      </ul>
+      <details class="quiz-key"><summary>解析</summary><p>mid-fusion 出问题能换冻结策略、换投影层、单独重训视觉塔；early-fusion 只剩<b>数据配比与损失权重</b>两个旋钮。所以贵的不是 GPU 小时，是失去的调试自由度。</p></details>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= §5 ================= -->
+<section id="s5">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">05</span><h2>选型：按负载形态走，而不是按"是否原生"走</h2></div>
+    <p class="sec-sub">"要不要上原生"这个问题问错了。正确的问法是：<b>我的瓶颈在感知精度、生成保真度，还是端到端延迟</b>。三个答案指向三条不同的路。</p>
+
+    <figure class="fig">
+      <div class="fig-head"><h3>图 5 · 四问选型树</h3><span>从负载倒推范式</span></div>
+      <div class="fig-scroll">
+      <svg viewBox="0 0 1000 400" role="img" aria-label="多模态架构选型决策树">
+        <defs>
+          <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#c9c4b8"/>
+          </marker>
+        </defs>
+
+        <rect x="20" y="160" width="146" height="72" fill="#12141a"/>
+        <text x="38" y="188" font-size="9.5" fill="#a8a49a" font-family="ui-monospace,monospace">Q0</text>
+        <text x="38" y="208" font-size="12.5" fill="#f6f5f1" font-weight="600">主负载是什么</text>
+
+        <g stroke="#c9c4b8" fill="none">
+          <path d="M166,196 C196,196 204,92 236,92" marker-end="url(#a5)"/>
+          <path d="M166,196 L236,196" marker-end="url(#a5)"/>
+          <path d="M166,196 C196,196 204,304 236,304" marker-end="url(#a5)"/>
+        </g>
+
+        <rect x="238" y="58" width="196" height="68" fill="#e8f1f2" stroke="#155e6e"/>
+        <text x="254" y="84" font-size="12" fill="#12141a" font-weight="600">只读不写</text>
+        <text x="254" y="103" font-size="10.5" fill="#2b4d55">VQA · 文档 · GUI Agent · 长视频</text>
+
+        <rect x="238" y="162" width="196" height="68" fill="#efe8f2" stroke="#6b4a8a"/>
+        <text x="254" y="188" font-size="12" fill="#12141a" font-weight="600">读写都要</text>
+        <text x="254" y="207" font-size="10.5" fill="#4c3a5e">图文混合输出 · 编辑 · 生成</text>
+
+        <rect x="238" y="270" width="196" height="68" fill="#fbfaf6" stroke="#c9c4b8"/>
+        <text x="254" y="296" font-size="12" fill="#12141a" font-weight="600">只是分类 / 检索</text>
+        <text x="254" y="315" font-size="10.5" fill="#5c626f">打标 · 去重 · 召回</text>
+
+        <!-- 叶子 -->
+        <g stroke="#c9c4b8" fill="none">
+          <path d="M434,92 C456,92 462,66 484,66" marker-end="url(#a5)"/>
+          <path d="M434,92 C456,92 462,122 484,122" marker-end="url(#a5)"/>
+          <path d="M434,196 C456,196 462,186 484,186" marker-end="url(#a5)"/>
+          <path d="M434,196 C456,196 462,246 484,246" marker-end="url(#a5)"/>
+          <path d="M434,304 L484,304" marker-end="url(#a5)"/>
+        </g>
+
+        <rect x="486" y="40" width="278" height="52" fill="#fff" stroke="#155e6e"/>
+        <text x="500" y="60" font-size="11.5" fill="#12141a" font-weight="600">mid-fusion + 动态分辨率</text>
+        <text x="500" y="78" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">Qwen3-VL · InternVL 系 · LLaVA-1.5</text>
+
+        <rect x="486" y="100" width="278" height="52" fill="#fff" stroke="#8d6b1f"/>
+        <text x="500" y="120" font-size="11.5" fill="#12141a" font-weight="600">early-fusion（接受高训练成本）</text>
+        <text x="500" y="138" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">Chameleon · Emu3</text>
+
+        <rect x="486" y="160" width="278" height="52" fill="#fff" stroke="#6b4a8a"/>
+        <text x="500" y="180" font-size="11.5" fill="#12141a" font-weight="600">AR + 扩散双目标</text>
+        <text x="500" y="198" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">Transfusion · BAGEL · Janus-Pro</text>
+
+        <rect x="486" y="220" width="278" height="52" fill="#fff" stroke="#2f6b4f"/>
+        <text x="500" y="238" font-size="11.5" fill="#12141a" font-weight="600">全离散 + 并行解码</text>
+        <text x="500" y="256" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">Emu3.5 · Qwen3-Omni</text>
+
+        <rect x="486" y="284" width="278" height="52" fill="#fff" stroke="#c9c4b8"/>
+        <text x="500" y="304" font-size="11.5" fill="#12141a" font-weight="600">双塔，别上大模型</text>
+        <text x="500" y="322" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">CLIP · SigLIP</text>
+
+        <!-- 右侧判据 -->
+        <line x1="790" y1="30" x2="790" y2="356" stroke="#eae7e0"/>
+        <text x="812" y="56" font-size="10" fill="#8d929d" font-family="ui-monospace,monospace">WHY</text>
+        <text x="812" y="80" font-size="10.5" fill="#5c626f">成熟视觉塔把感知精度</text>
+        <text x="812" y="96" font-size="10.5" fill="#5c626f">做成了可独立升级的零件</text>
+        <text x="812" y="130" font-size="10.5" fill="#5c626f">唯一能保证输出侧</text>
+        <text x="812" y="146" font-size="10.5" fill="#5c626f">图文任意交错的方式</text>
+        <text x="812" y="182" font-size="10.5" fill="#5c626f">离散 AR 的保真度天花板</text>
+        <text x="812" y="198" font-size="10.5" fill="#5c626f">已被实测否定</text>
+        <text x="812" y="240" font-size="10.5" fill="#5c626f">流式场景的延迟靠</text>
+        <text x="812" y="256" font-size="10.5" fill="#5c626f">并行解码而非模型能力</text>
+        <text x="812" y="318" font-size="10.5" fill="#5c626f">上大模型是负收益：</text>
+        <text x="812" y="334" font-size="10.5" fill="#5c626f">延迟涨 10 倍，指标涨 1 点</text>
+      </svg>
+      </div>
+      <figcaption>树中的"代表模型"取谱系中可查证的一手实现，非穷举。注意 Qwen3-Omni 同时出现在"全离散"与 M2G 两处，是因为它按输出模态分流而非按统一词表<sup><a href="#r21">[21]</a></sup>。</figcaption>
+    </figure>
+
+    <div class="tbl-scroll" style="margin-top:20px;">
+      <table>
+        <thead><tr><th style="width:20%">场景</th><th style="width:16%">推荐范式</th><th style="width:20%">主要瓶颈</th><th style="width:44%">判断依据</th></tr></thead>
+        <tbody>
+          <tr><td class="k">文档 / 图表理解</td><td><span class="tag">mid-fusion</span></td><td>分辨率与 token 预算</td><td>瓶颈在视觉编码器的有效分辨率，不在跨模态耦合深度。动态分辨率 + 视觉 token 重采样收益远大于换架构。</td></tr>
+          <tr><td class="k">GUI / 屏幕 Agent</td><td><span class="tag">mid-fusion</span></td><td>定位精度、时序</td><td>需要精确坐标与元素级 grounding，成熟检测/定位头比端到端更可控；早融合在细粒度空间定位上并无优势。</td></tr>
+          <tr><td class="k">长视频问答</td><td><span class="tag">mid-fusion</span> <span class="tag r">待观察</span></td><td>序列长度、位置编码</td><td>瓶颈在 3D 位置编码与帧采样策略；早融合的全序列注意力在这里是负担而非优势。</td></tr>
+          <tr><td class="k">图文交错文档生成</td><td><span class="tag r">early-fusion</span></td><td>统一词表、生成保真</td><td>只有共享词表的模型能"边写边画"且保持上下文一致；这是 late/mid 在结构上做不到的事。</td></tr>
+          <tr><td class="k">创意图像生成 + 编辑</td><td><span class="tag r">AR + 扩散</span></td><td>视觉保真度</td><td>纯离散 AR 的图像质量仍落后扩散；Janus 式解耦用参数换质量，是当前最稳的工程解。</td></tr>
+          <tr><td class="k">实时语音对话</td><td><span class="tag r">全模态流式</span></td><td>端到端延迟</td><td>要压到百毫秒级，必须做全双工 + 流式 token 输出，架构上更接近 Moshi / Omni 系而非 VLM。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="quiz" data-answer="D">
+      <div class="quiz-head"><span class="quiz-tag">CHECK 05</span><span class="quiz-n">单选 · 点击选项即判</span></div>
+      <p class="quiz-q">文档 / 图表理解场景，为什么推荐 mid-fusion 而不是 early-fusion？</p>
+      <ul class="opts">
+        <li class="opt" data-k="A"><span class="k">A</span><span class="t">因为 early-fusion 的推理延迟一定更高</span><span class="mk"></span></li>
+        <li class="opt" data-k="B"><span class="k">B</span><span class="t">因为 early-fusion 无法处理超过一万 token 的输入</span><span class="mk"></span></li>
+        <li class="opt" data-k="C"><span class="k">C</span><span class="t">因为 early-fusion 在该场景还没有任何公开实现</span><span class="mk"></span></li>
+        <li class="opt" data-k="D"><span class="k">D</span><span class="t">因为瓶颈在视觉编码器的有效分辨率与 token 预算，动态分辨率＋重采样的收益大于换架构</span><span class="mk"></span></li>
+      </ul>
+      <details class="quiz-key"><summary>解析</summary><p>选型看瓶颈位置，不看"是否原生"。文档场景的损失主要来自<b>视觉信息在进主干之前就被压掉</b>，这是分辨率与 token 预算问题，换融合深度解决不了。同理，GUI Agent 的瓶颈是定位精度，长视频的瓶颈是 3D 位置编码。</p></details>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= §6 ================= -->
+<section id="s6">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">06</span><h2>关键词卡</h2></div>
+    <p class="sec-sub">读这一带文献时反复出现的十二个词。按"会改变你读论文的方式"排序。</p>
+
+    <dl class="kw">
+      <div class="kwc"><dt>Early fusion</dt><dd>所有模态先经统一算子映射到同一空间，再由单一 Transformer 处理。<em>标志：没有独立视觉编码器</em>，词表里图像与文本是同一批 id。</dd></div>
+      <div class="kwc"><dt>Mid fusion</dt><dd>保留模态编码器，把跨模态对齐做成<b>算子</b>注入主干中间层。<em>结构上仍不对称</em>，但已非事后对齐。</dd></div>
+      <div class="kwc"><dt>Modality gap</dt><dd>对比学习训出的图文表征虽对齐，却分布在嵌入空间的两个不相交锥体内。<em>它是 late fusion 需要投影层的根本原因</em>。</dd></div>
+      <div class="kwc"><dt>Codebook / VQ</dt><dd>把连续图像压成有限码本索引。码本大小决定信息上限，<em>下采样率决定 token 数</em>——两者共同构成"信息税"。</dd></div>
+      <div class="kwc"><dt>Q-Former</dt><dd>BLIP-2 的可学习 query 集合，用固定数量 query 从视觉特征里"抽取"信息。<em>本质是固定带宽的信道</em>。</dd></div>
+      <div class="kwc"><dt>Perceiver Resampler</dt><dd>Flamingo 的变长→定长压缩模块。与 Q-Former 目标相似，但服务于层间交叉注意力的输入。</dd></div>
+      <div class="kwc"><dt>Gated cross-attention</dt><dd>门控初始化为 0，使新增层在训练初期等价于恒等映射。<em>保护预训练权重不被随机初始化破坏</em>。</dd></div>
+      <div class="kwc"><dt>双损失</dt><dd>文本走交叉熵、图像走扩散/流匹配，同一主干两套梯度。<em>难点不在实现，在配比与梯度尺度</em>。</dd></div>
+      <div class="kwc"><dt>MoT</dt><dd>Mixture-of-Transformer-Experts：理解与生成各用一组专家，共享注意力。BAGEL 的做法<sup><a href="#r12">[12]</a></sup>。</dd></div>
+      <div class="kwc"><dt>TMRoPE</dt><dd>把位置编码拆成时间、高、宽三轴，使音视频与图像共享同一套时序语义。Omni 系的关键件。</dd></div>
+      <div class="kwc"><dt>理解—生成两难</dt><dd>理解要连续高保真特征，生成要离散可预测 token，二者对表征的要求方向相反。<em>当前没有单一表征同时满足</em>。</dd></div>
+      <div class="kwc"><dt>Grounding hack</dt><dd>RL 阶段模型绕过视觉证据、直接从语言先验"猜"答案，指标虚高。<em>早融合尤其容易中招</em>。</dd></div>
+    </dl>
+    <div class="quiz" data-answer="C">
+      <div class="quiz-head"><span class="quiz-tag">CHECK 06</span><span class="quiz-n">单选 · 点击选项即判</span></div>
+      <p class="quiz-q">"Modality gap"与投影层之间是什么关系？</p>
+      <ul class="opts">
+        <li class="opt" data-k="A"><span class="k">A</span><span class="t">投影层训练不足造成了 modality gap</span><span class="mk"></span></li>
+        <li class="opt" data-k="B"><span class="k">B</span><span class="t">两者无关：前者是数据问题，后者是架构问题</span><span class="mk"></span></li>
+        <li class="opt" data-k="C"><span class="k">C</span><span class="t">modality gap 是 late fusion 必须加一层投影的根本原因</span><span class="mk"></span></li>
+        <li class="opt" data-k="D"><span class="k">D</span><span class="t">modality gap 只出现在离散 token 模型里</span><span class="mk"></span></li>
+      </ul>
+      <details class="quiz-key"><summary>解析</summary><p>对比学习只保证配对样本在空间中相近，不保证两个模态的分布重叠——图文表征落在两个不相交的锥体里。既然不在同一空间，就必须有一层可学习的翻译把视觉特征"搬"进词嵌入空间。<b>投影层是 gap 的结果，不是原因</b>；也因为它是唯一的通道，所以它天然是信息瓶颈。</p></details>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= §7 ================= -->
+<section id="s7">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">07</span><h2>参考文献</h2></div>
+    <p class="sec-sub">优先一手来源：技术报告、综述与原始论文。编号与正文上标对应，arXiv 标识均经接口核对。</p>
+
+    <ol class="refs">
+      <li id="r1"><b>Toward Native Multimodal Modeling: A Roadmap.</b> An S. et al. 2026. <a class="id" href="https://arxiv.org/abs/2605.25343">arXiv:2605.25343</a> · <a href="https://nmm-roadmap.github.io/">项目页</a></li>
+      <li id="r2"><b>Scaling Laws for Native Multimodal Models.</b> Shukor M. et al. ICCV 2025. <a class="id" href="https://arxiv.org/abs/2504.07951">arXiv:2504.07951</a></li>
+      <li id="r3"><b>Janus-Pro: Unified Multimodal Understanding and Generation with Data and Model Scaling.</b> Chen X. et al. 2025. <a class="id" href="https://arxiv.org/abs/2501.17811">arXiv:2501.17811</a></li>
+      <li id="r4"><b>Learning Transferable Visual Models From Natural Language Supervision.</b> Radford A. et al. 2021. <a class="id" href="https://arxiv.org/abs/2103.00020">arXiv:2103.00020</a></li>
+      <li id="r5"><b>Sigmoid Loss for Language Image Pre-Training.</b> Zhai X. et al. 2023. <a class="id" href="https://arxiv.org/abs/2303.15343">arXiv:2303.15343</a></li>
+      <li id="r6"><b>Flamingo: a Visual Language Model for Few-Shot Learning.</b> Alayrac J.-B. et al. 2022. <a class="id" href="https://arxiv.org/abs/2204.14198">arXiv:2204.14198</a></li>
+      <li id="r7"><b>BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models.</b> Li J. et al. 2023. <a class="id" href="https://arxiv.org/abs/2301.12597">arXiv:2301.12597</a></li>
+      <li id="r8"><b>Visual Instruction Tuning.</b> Liu H. et al. 2023. <a class="id" href="https://arxiv.org/abs/2304.08485">arXiv:2304.08485</a></li>
+      <li id="r9"><b>Chameleon: Mixed-Modal Early-Fusion Foundation Models.</b> Chameleon Team. 2024. <a class="id" href="https://arxiv.org/abs/2405.09818">arXiv:2405.09818</a></li>
+      <li id="r10"><b>Emu3: Next-Token Prediction is All You Need.</b> Wang X. et al. 2024. <a class="id" href="https://arxiv.org/abs/2409.18869">arXiv:2409.18869</a></li>
+      <li id="r11"><b>Transfusion: Predict the Next Token and Diffuse Images with One Multi-Modal Model.</b> Zhou C. et al. 2024. <a class="id" href="https://arxiv.org/abs/2408.11039">arXiv:2408.11039</a></li>
+      <li id="r12"><b>Emerging Properties in Unified Multimodal Pretraining (BAGEL).</b> Deng C. et al. 2025. <a class="id" href="https://arxiv.org/abs/2505.14683">arXiv:2505.14683</a></li>
+      <li id="r13"><b>Janus: Decoupling Visual Encoding for Unified Multimodal Understanding and Generation.</b> Wu C. et al. 2024. <a class="id" href="https://arxiv.org/abs/2410.13848">arXiv:2410.13848</a></li>
+      <li id="r14"><b>Gemini: A Family of Highly Capable Multimodal Models.</b> Gemini Team. 2023. <a class="id" href="https://arxiv.org/abs/2312.11805">arXiv:2312.11805</a></li>
+      <li id="r15"><b>Gemini 3 Pro Model Card.</b> Google DeepMind. 2025-11. <a class="id" href="https://storage.googleapis.com/deepmind-media/Model-Cards/Gemini-3-Pro-Model-Card.pdf">PDF</a></li>
+      <li id="r16"><b>GPT-4o System Card.</b> OpenAI. 2024. <a class="id" href="https://arxiv.org/abs/2410.21276">arXiv:2410.21276</a></li>
+      <li id="r17"><b>Emu3.5: Native Multimodal Models are World Learners.</b> BAAI. 2025. <a class="id" href="https://arxiv.org/abs/2510.26583">arXiv:2510.26583</a></li>
+      <li id="r18"><b>AnyGPT: Unified Multimodal LLM with Discrete Sequence Modeling.</b> Zhan J. et al. 2024. <a class="id" href="https://arxiv.org/abs/2402.12226">arXiv:2402.12226</a></li>
+      <li id="r19"><b>Show-o: One Single Transformer to Unify Multimodal Understanding and Generation.</b> Xie J. et al. 2024. <a class="id" href="https://arxiv.org/abs/2408.12528">arXiv:2408.12528</a></li>
+      <li id="r20"><b>Qwen3-VL Technical Report.</b> Qwen Team. 2025. <a class="id" href="https://arxiv.org/abs/2511.21631">arXiv:2511.21631</a></li>
+      <li id="r21"><b>Qwen3-Omni Technical Report.</b> Qwen Team. 2025. <a class="id" href="https://arxiv.org/abs/2509.17765">arXiv:2509.17765</a></li>
+      <li id="r22"><b>Qwen2.5-Omni Technical Report.</b> Xu J. et al. 2025. <a class="id" href="https://arxiv.org/abs/2503.20215">arXiv:2503.20215</a></li>
+      <li id="r23"><b>Moshi: a speech-text foundation model for real-time dialogue.</b> Défossez A. et al. 2024. <a class="id" href="https://arxiv.org/abs/2410.00037">arXiv:2410.00037</a></li>
+      <li id="r24"><b>Unified-IO 2: Scaling Autoregressive Multimodal Models with Vision, Language, Audio, and Action.</b> Lu J. et al. 2023. <a class="id" href="https://arxiv.org/abs/2312.17172">arXiv:2312.17172</a></li>
+      <li id="r25"><b>Language Is Not All You Need: Aligning Perception with Language Models (Kosmos-1).</b> Huang S. et al. 2023. <a class="id" href="https://arxiv.org/abs/2302.14045">arXiv:2302.14045</a></li>
+      <li id="r26"><b>ImageBind: One Embedding Space To Bind Them All.</b> Girdhar R. et al. 2023. <a class="id" href="https://arxiv.org/abs/2305.05665">arXiv:2305.05665</a></li>
+      <li id="r27"><b>CogVLM: Visual Expert for Pretrained Language Models.</b> Wang W. et al. 2023. <a class="id" href="https://arxiv.org/abs/2311.03079">arXiv:2311.03079</a></li>
+      <li id="r28"><b>Improved Baselines with Visual Instruction Tuning.</b> Liu H. et al. 2023. <a class="id" href="https://arxiv.org/abs/2310.03744">arXiv:2310.03744</a></li>
+      <li id="r29"><b>A Survey on Multimodal Large Language Models.</b> Yin S. et al. National Science Review, 2024. <a class="id" href="https://arxiv.org/abs/2306.13549">arXiv:2306.13549</a></li>
+      <li id="r30"><b>MM-LLMs: Recent Advances in MultiModal Large Language Models.</b> Zhang D. et al. 2024. <a class="id" href="https://arxiv.org/abs/2401.13601">arXiv:2401.13601</a></li>
+      <li id="r31"><b>An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale.</b> Dosovitskiy A. et al. 2020. <a class="id" href="https://arxiv.org/abs/2010.11929">arXiv:2010.11929</a></li>
+    </ol>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>本页为技术地图，非教程。图中节点与箭头为机制示意，不代表任何具体实现的张量形状。</div>
+    <div>文献编号与 arXiv 标识均经接口逐条核对；厂商未公开架构细节的模型（如 Gemini 系列、GPT-4o）仅依据官方模型卡与系统卡描述。</div>
+    <div>Starnever · 2026-11-25 · 单页自包含，无外部依赖</div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var qs = document.querySelectorAll('.quiz');
+  var meter = document.getElementById('qs');
+  Array.prototype.forEach.call(qs, function (q) {
+    var ans = q.getAttribute('data-answer');
+    var opts = q.querySelectorAll('.opt');
+    var key = q.querySelector('.quiz-key');
+    Array.prototype.forEach.call(opts, function (o) {
+      o.addEventListener('click', function () {
+        if (q.hasAttribute('data-done')) return;
+        q.setAttribute('data-done', '1');
+        Array.prototype.forEach.call(opts, function (x) {
+          if (x.getAttribute('data-k') === ans) {
+            x.classList.add('ok');
+            x.querySelector('.mk').textContent = '正确答案';
+          }
+        });
+        if (o.getAttribute('data-k') !== ans) {
+          o.classList.add('no');
+          o.querySelector('.mk').textContent = '你的选择';
+        }
+        key.open = true;
+        if (meter) meter.textContent = document.querySelectorAll('.quiz[data-done]').length;
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
