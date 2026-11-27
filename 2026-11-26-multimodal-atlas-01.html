@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>多模态图谱 01 · 能看、能听、能生成，今年已经不是同一张考卷</title>
+<style>
+  :root{
+    --paper:#f7f5f0;
+    --card:#ffffff;
+    --ink:#14161a;
+    --sub:#6b7079;
+    --faint:#9398a0;
+    --line:#e2ddd3;
+    --line-soft:#eeeae2;
+    --acc:#3a46c9;
+    --acc-soft:#eaecfb;
+    --txt:#14161a;
+    --img:#2b6cb0;
+    --aud:#c4622d;
+    --vid:#6b3fa0;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1060px;margin:0 auto;padding:0 24px;}
+  .prose{max-width:74ch;}
+
+  /* ---------- masthead ---------- */
+  .masthead{border-top:3px solid var(--acc);background:var(--card);border-bottom:1px solid var(--line);}
+  .masthead-inner{max-width:1060px;margin:0 auto;padding:26px 24px 30px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;}
+  .brandline{display:flex;align-items:baseline;gap:12px;}
+  .logo{font:800 15px/1 var(--mono);letter-spacing:.3em;color:var(--ink);text-transform:uppercase;}
+  .logo-cn{font-size:13px;letter-spacing:.28em;color:var(--acc);}
+  .issue{font:400 12px/1 var(--mono);color:var(--sub);letter-spacing:.08em;}
+
+  .hero{background:var(--card);border-bottom:1px solid var(--line);padding:44px 0 52px;}
+  .kicker{font:600 11px/1 var(--mono);letter-spacing:.22em;color:var(--acc);text-transform:uppercase;}
+  h1{font-size:40px;line-height:1.28;letter-spacing:-.02em;margin:14px 0 20px;font-weight:800;max-width:24em;}
+  .lede{font-size:17px;line-height:1.85;color:#3d4048;max-width:64ch;margin:0;}
+  .lede b{font-weight:600;color:var(--ink);}
+  .hero-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px;}
+  .chip{font:500 12px/1 var(--mono);color:var(--sub);border:1px solid var(--line);border-radius:999px;padding:7px 13px;background:var(--paper);}
+  .spectrum{display:flex;height:6px;margin-top:36px;}
+  .spectrum i{flex:1;display:block;}
+
+  /* ---------- 图表 ---------- */
+  svg.chart{width:100%;height:auto;display:block;}
+  svg.chart text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;}
+  svg.chart .l{font-size:15px;fill:#4a4e56;}
+  svg.chart .v{font:600 15px var(--mono);fill:#14161a;}
+  svg.chart .n{font-size:13px;fill:#9398a0;}
+  svg.chart .h{font-size:13px;fill:#6b7079;letter-spacing:.06em;}
+  svg.chart .sl{font-size:13px;fill:#3d4048;}
+  svg.chart .sv{font:600 13px var(--mono);fill:#14161a;}
+  svg.chart .sn{font-size:11.5px;fill:#9398a0;}
+  .fig{margin:0;background:var(--card);border:1px solid var(--line);padding:24px 26px;min-width:0;}
+  .fig-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap;}
+  .fig-head h3{font-size:16px;margin:0;font-weight:700;}
+  .fig-head span{font:400 12px/1.4 var(--mono);color:var(--faint);}
+  .fig-scroll{overflow-x:auto;min-width:0;}
+  .fig-scroll svg{min-width:660px;}
+  .swipe{display:none;font:500 11px/1 var(--mono);color:var(--faint);margin-top:10px;letter-spacing:.04em;}
+  @media (max-width:760px){ .swipe{display:block;} }
+  figcaption{font-size:12.5px;color:var(--faint);margin-top:14px;line-height:1.7;}
+  .cell-fig{border-top:1px dashed var(--line);padding-top:16px;}
+  .cell-cap{font:600 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:10px;}
+  .figs{display:grid;gap:22px;margin-top:22px;grid-template-columns:minmax(0,1fr);}
+
+  /* ---------- section ---------- */
+  section{padding:56px 0;border-bottom:1px solid var(--line-soft);}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:12px;}
+  .sec-num{font:700 12px/1 var(--mono);color:var(--acc);letter-spacing:.1em;}
+  h2{font-size:26px;line-height:1.4;margin:0;font-weight:700;letter-spacing:-.01em;}
+  .sec-sub{color:var(--sub);font-size:15px;margin:0 0 34px;max-width:68ch;}
+
+  /* ---------- judgment cards ---------- */
+  .judgments{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);}
+  .jd{background:var(--card);padding:30px 32px;}
+  .jd-n{font:700 12px/1 var(--mono);color:var(--acc);letter-spacing:.12em;margin-bottom:14px;opacity:.75;}
+  .jd h3{font-size:19px;margin:0 0 12px;font-weight:700;letter-spacing:-.01em;}
+  .jd p{margin:0 0 12px;color:#3d4048;font-size:15.5px;}
+  .jd p:last-child{margin-bottom:0;}
+  .jd .verdict{border-left:3px solid var(--acc);padding-left:14px;color:var(--ink);font-size:15px;}
+  .jd .verdict strong{color:var(--acc);}
+  .evi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+       background:var(--line-soft);border:1px solid var(--line-soft);margin-top:20px;}
+  .evi div{background:var(--card);padding:14px 15px;}
+  .evi b{display:block;font:700 20px/1.2 var(--mono);letter-spacing:-.02em;color:var(--acc);}
+  .evi span{display:block;font-size:11.5px;color:var(--faint);line-height:1.5;margin-top:4px;}
+
+  /* ---------- table ---------- */
+  .tbl-scroll{overflow-x:auto;border:1px solid var(--line);background:var(--card);}
+  table{border-collapse:collapse;width:100%;min-width:900px;font-size:14px;}
+  th,td{text-align:left;padding:14px 16px;border-bottom:1px solid var(--line-soft);vertical-align:top;}
+  thead th{
+    background:#fbf9f5;font:600 11px/1.4 var(--mono);color:var(--sub);
+    letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid var(--line);
+    position:sticky;top:0;
+  }
+  tbody tr:last-child td{border-bottom:0;}
+  tbody tr:hover{background:#fdfbf7;}
+  td.vendor{font-weight:700;white-space:nowrap;}
+  td.vendor i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:9px;vertical-align:1px;}
+  .m{display:block;font:500 13px/1.5 var(--mono);color:var(--ink);}
+  .m-sub{display:block;font-size:12.5px;color:var(--faint);line-height:1.5;}
+  .tag{display:inline-block;font:500 11px/1 var(--mono);padding:4px 8px;border-radius:4px;background:var(--acc-soft);color:var(--acc);white-space:nowrap;}
+  .tag.ok{background:#e8f2ea;color:#256b3a;}
+  .tag.plan{background:#f1efe7;color:#7a6a33;}
+  .tag.warn{background:#fbecea;color:#a03826;}
+  .table-note{font-size:12.5px;color:var(--faint);margin:14px 0 0;line-height:1.7;}
+
+  /* ---------- modality matrix ---------- */
+  .mx-wrap{overflow-x:auto;border:1px solid var(--line);background:var(--card);}
+  table.mod{min-width:720px;font-size:13px;}
+  table.mod th,table.mod td{padding:11px 12px;text-align:center;}
+  table.mod th:first-child,table.mod td:first-child{text-align:left;padding-left:16px;}
+  table.mod thead th{font-size:10.5px;letter-spacing:.06em;}
+  table.mod td.name{font:500 12.5px/1.4 var(--mono);white-space:nowrap;}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;}
+  .dot.on{background:#3a46c9;}
+  .dot.off{background:#e6e2d9;}
+  .dot.half{background:#b9bed9;}
+
+  /* ---------- brand cards ---------- */
+  .brands{display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:22px;}
+  .brand{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--b);padding:0;display:flex;flex-direction:column;min-width:0;}
+  .brand-top{padding:22px 26px 20px;border-bottom:1px solid var(--line-soft);}
+  .brand-name{display:flex;align-items:baseline;justify-content:space-between;gap:12px;}
+  .brand-name h3{font-size:16px;margin:0;font-weight:800;letter-spacing:.01em;}
+  .brand-date{font:400 11.5px/1 var(--mono);color:var(--faint);white-space:nowrap;}
+  .model{font:700 22px/1.3 var(--mono);letter-spacing:-.02em;margin:12px 0 6px;color:var(--b);}
+  .role{font-size:14px;color:var(--sub);margin:0;line-height:1.6;}
+  .brand-body{padding:22px 26px 26px;display:flex;flex-direction:column;gap:18px;flex:1;}
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line-soft);border:1px solid var(--line-soft);}
+  .metric{background:var(--card);padding:12px 13px;}
+  .metric b{display:block;font:700 18px/1.25 var(--mono);letter-spacing:-.02em;}
+  .metric span{display:block;font-size:11.5px;color:var(--faint);line-height:1.45;margin-top:3px;}
+  .block h4{font:600 10.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--acc);margin:0 0 8px;}
+  .block p{margin:0;font-size:14.5px;line-height:1.75;color:#3d4048;}
+  .block p b{color:var(--ink);}
+  .caveat{background:#fbf7ef;border:1px solid #eee3cd;padding:12px 14px;font-size:13px;line-height:1.7;color:#6b5a35;}
+  .caveat b{color:#8a5a20;}
+
+  /* ---------- timeline ---------- */
+  .tl-list{list-style:none;margin:0;padding:0 0 0 26px;border-left:1px solid var(--line);}
+  .tl{position:relative;padding:0 0 22px 20px;}
+  .tl:last-child{padding-bottom:0;}
+  .tl::before{content:"";position:absolute;left:-7px;top:7px;width:12px;height:12px;border-radius:50%;background:var(--paper);border:2px solid var(--tc,#c9c4ba);}
+  .tl.hot::before{background:var(--tc,var(--acc));border-color:var(--tc,var(--acc));box-shadow:0 0 0 4px rgba(0,0,0,.05);}
+  .tl time{font:600 12px/1 var(--mono);color:var(--tc,var(--sub));letter-spacing:.04em;}
+  .tl p{margin:6px 0 0;font-size:14.5px;line-height:1.7;color:#3d4048;}
+  .tl p b{color:var(--ink);}
+
+  /* ---------- pick matrix ---------- */
+  .mxgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);}
+  .mx{background:var(--card);padding:22px 24px;}
+  .mx-task{font:700 11px/1.4 var(--mono);letter-spacing:.1em;color:var(--faint);text-transform:uppercase;}
+  .mx-pick{font-size:17px;font-weight:700;margin:9px 0 8px;line-height:1.45;}
+  .mx-why{font-size:13.5px;color:#4a4e56;line-height:1.7;}
+
+  /* ---------- source ---------- */
+  .src{background:var(--card);border:1px solid var(--line);padding:28px 30px;font-size:14.5px;line-height:1.8;color:#3d4048;}
+  .src p{margin:0 0 16px;}
+  .src ol{margin:0;padding-left:20px;}
+  .src li{margin-bottom:12px;}
+  .src b{color:var(--ink);}
+
+  footer{background:var(--card);border-top:1px solid var(--line);padding:26px 0;margin-top:0;}
+  .foot-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;font:400 12.5px/1.6 var(--mono);color:var(--faint);}
+  footer a{color:var(--acc);text-decoration:none;border-bottom:1px solid var(--acc-soft);}
+  footer a:hover{border-bottom-color:var(--acc);}
+
+  @media (max-width:720px){
+    h1{font-size:29px;}
+    .lede{font-size:15.5px;}
+    section{padding:44px 0;}
+    h2{font-size:22px;}
+    .jd{padding:24px 20px;}
+    .brands{grid-template-columns:minmax(0,1fr);}
+    .src{padding:22px 20px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="masthead-inner">
+    <div class="brandline">
+      <span class="logo">ATLAS</span>
+      <span class="logo-cn">多模态图谱</span>
+    </div>
+    <div class="issue">NO.01 &nbsp;/&nbsp; 2026-11-26</div>
+  </div>
+</div>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="kicker">Multimodal Atlas · 第 01 期</div>
+    <h1>能看、能听、能生成，今年已经不是同一张考卷</h1>
+    <p class="lede">
+      过去十二个月，「多模态」被拆成了三件完全不同的事：把图看懂、把话说顺、把片子做出来。它们的榜单不同、成本单位不同、失败方式也不同。
+      这一期把 Qwen、GPT、Gemini、Seed / Seedance、MiniMax、GLM、Kimi、DeepSeek 摆在一张桌上，只回答一个问题：<b>你手上这件活，该交给哪一条线。</b>
+    </p>
+    <div class="hero-meta">
+      <span class="chip">8 家厂商</span>
+      <span class="chip">15 个模型</span>
+      <span class="chip">三条产品线</span>
+      <span class="chip">数据截至 11/25</span>
+    </div>
+    <div class="spectrum" aria-hidden="true">
+      <i style="background:#14161a"></i>
+      <i style="background:#2b6cb0"></i>
+      <i style="background:#c4622d"></i>
+      <i style="background:#6b3fa0"></i>
+      <i style="background:#3a46c9"></i>
+      <i style="background:#0e7490"></i>
+      <i style="background:#b8342a"></i>
+      <i style="background:#8a8f98"></i>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ============ 01 判断 ============ -->
+<section id="judge">
+  <div class="sec-head"><span class="sec-num">01</span><h2>本期三个判断</h2></div>
+  <p class="sec-sub">先把结论放前面。三条判断后面都有对应证据，不同意可以直接看数据那节。</p>
+
+  <div class="judgments">
+    <div class="jd">
+      <div class="jd-n">JUDGMENT 01</div>
+      <h3>「多模态」已经裂成三张考卷，混着比是今年最贵的错误</h3>
+      <p>理解侧考 MMMU-Pro 和 OCR，实时交互侧考首包延迟和双工，生成侧考 Elo 和每秒成本。这三件事没有可比性，但市面上大量文章把它们塞进同一张「多模态能力表」。</p>
+      <p>一个典型误判：看到 Seedance 2.5 在图像生视频榜排第一，就以为它能读图里的合同条款。它不能——它是生成模型，输入里的图只作为参考素材，不产生「理解结论」。反过来，GPT-6.1 Terra 的 MMMU-Pro 能到 85.5%，但它一张图也画不出来。</p>
+      <p class="verdict">选型第一步不是看榜，是<strong>先确定你要的是「读」「说」还是「产」</strong>。三者的预算科目都不一样：读按 token，说按并发和延迟，产按秒。</p>
+      <div class="evi">
+        <div><b>85.5%</b><span>GPT-6.1 Terra 的 MMMU-Pro</span></div>
+        <div><b>234ms</b><span>Qwen3-Omni 音频首包（单并发）</span></div>
+        <div><b>1161</b><span>Seedance 2.5 图生视频 Elo</span></div>
+        <div><b>¥0.8</b><span>MiniMax H3 每秒 2K 输出</span></div>
+      </div>
+    </div>
+
+    <div class="jd">
+      <div class="jd-n">JUDGMENT 02</div>
+      <h3>前沿在 Google，交付在中国厂商——这条分界今年更清楚了</h3>
+      <p>Google 拿出的东西是「模型本身能吃什么」：Gemini 4 Argon 原生接收文本、图像、音频、视频、PDF，LVBench 91.7%，一段纯音频能反推画面。这是研究意义上的强，但它仍然是 API 里的一个能力，不是一个能直接卖给工厂的产品。</p>
+      <p>中国厂商这半年做的几乎都是「最后一百米」：Qwen3-VL-Plus 直接对着工业质检和百万级图纸批量解析，配套轻量化 SDK 对中小企业免费开放商用；Seedance 2.5 把单段拉到 30 秒 4K，还给了 480p 草稿模式先验分镜；MiniMax H3 把 2K 生成价压到约同类旗舰的三分之一。这些不是跑分，是报价单。</p>
+      <p class="verdict">要<strong>能力上限</strong>看 Google，要<strong>能签合同的交付</strong>看阿里、字节、MiniMax。两者的评价标准不该是同一个。</p>
+    </div>
+
+    <div class="jd">
+      <div class="jd-n">JUDGMENT 03</div>
+      <h3>权重在贬值，模态覆盖在升值</h3>
+      <p>OpenAI 这一代反而收窄了：官方模型页上，GPT-6 Astra 与 GPT-6.1 Terra 的输入模态只有文本和图像，音频与视频不在列——想处理得靠工具链绕。这是工程上的克制，但也意味着「一个模型全吃」在闭源阵营并不成立。</p>
+      <p>开放权重这边是反过来的：Qwen 一条线同时有 VL（看懂）、Omni（听说）、Qwen4（原生视觉基座）；MiniMax 有 H3（生成）+ M3（文本）+ Speech 2.8 / Music 3.0；智谱有 GLM-4.6V 的 106B 和 9B 两档。能下载，就意味着能私有化、能微调、能把 badcase 喂回去。</p>
+      <p class="verdict">要私有化，<strong>「能不能下载」比「排第几」重要</strong>；只要 API，<strong>「模态表」比「参数量」重要</strong>。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 三条产品线 ============ -->
+<section id="lines">
+  <div class="sec-head"><span class="sec-num">02</span><h2>一张图看清三条产品线</h2></div>
+  <p class="sec-sub">同一个「多模态」标签下，其实是三种不同的输入输出契约。先认领你在哪一栏，再看后面的榜。</p>
+
+  <figure class="fig">
+    <div class="fig-head">
+      <h3>理解 / 交互 / 生成：三条线的输入输出与考核指标</h3>
+      <span>2026-11</span>
+    </div>
+    <div class="fig-scroll">
+      <svg class="chart" viewBox="0 0 680 404" role="img" aria-label="多模态三条产品线：理解、实时交互、生成，各自的代表模型、输出与关键指标">
+        <!-- 输入行 -->
+        <text class="h" x="0" y="14">输入模态</text>
+        <rect x="96" y="0" width="62" height="22" rx="3" fill="#14161a"/>
+        <text x="127" y="15" text-anchor="middle" font-size="11.5" fill="#fff">文本</text>
+        <rect x="164" y="0" width="62" height="22" rx="3" fill="#2b6cb0"/>
+        <text x="195" y="15" text-anchor="middle" font-size="11.5" fill="#fff">图像</text>
+        <rect x="232" y="0" width="62" height="22" rx="3" fill="#c4622d"/>
+        <text x="263" y="15" text-anchor="middle" font-size="11.5" fill="#fff">音频</text>
+        <rect x="300" y="0" width="62" height="22" rx="3" fill="#6b3fa0"/>
+        <text x="331" y="15" text-anchor="middle" font-size="11.5" fill="#fff">视频</text>
+
+        <!-- 三栏 -->
+        <line x1="0" y1="42" x2="680" y2="42" stroke="#e2ddd3"/>
+
+        <!-- A 理解 -->
+        <rect x="0" y="58" width="212" height="292" rx="4" fill="#ffffff" stroke="#e2ddd3"/>
+        <rect x="0" y="58" width="212" height="5" rx="2" fill="#2b6cb0"/>
+        <text x="18" y="90" font-size="11" fill="#9398a0" letter-spacing="1.4">A · READ</text>
+        <text x="18" y="118" font-size="19" font-weight="700" fill="#14161a">理解</text>
+        <text x="18" y="141" font-size="12.5" fill="#6b7079">把画面变成可判断的事实</text>
+
+        <text x="18" y="172" font-size="12.5" fill="#3d4048">Qwen3-VL-Plus</text>
+        <text x="18" y="192" font-size="12.5" fill="#3d4048">GPT-6.1 Terra</text>
+        <text x="18" y="212" font-size="12.5" fill="#3d4048">Kimi K3.1 Pro</text>
+        <text x="18" y="232" font-size="12.5" fill="#3d4048">GLM-4.6V</text>
+
+        <line x1="18" y1="250" x2="194" y2="250" stroke="#eeeae2"/>
+        <text x="18" y="270" font-size="11" fill="#9398a0">输出</text>
+        <text x="18" y="289" font-size="12.5" fill="#14161a">文字 / 坐标 / JSON</text>
+        <text x="18" y="311" font-size="11" fill="#9398a0">考核</text>
+        <text x="18" y="330" font-size="12.5" fill="#14161a">MMMU-Pro · OCR · 定位</text>
+
+        <!-- B 交互 -->
+        <rect x="234" y="58" width="212" height="292" rx="4" fill="#ffffff" stroke="#e2ddd3"/>
+        <rect x="234" y="58" width="212" height="5" rx="2" fill="#c4622d"/>
+        <text x="252" y="90" font-size="11" fill="#9398a0" letter-spacing="1.4">B · TALK</text>
+        <text x="252" y="118" font-size="19" font-weight="700" fill="#14161a">实时交互</text>
+        <text x="252" y="141" font-size="12.5" fill="#6b7079">边听边想边说，首包要快</text>
+
+        <text x="252" y="172" font-size="12.5" fill="#3d4048">Qwen3-Omni</text>
+        <text x="252" y="192" font-size="12.5" fill="#3d4048">Qwen3-Omni-Flash</text>
+        <text x="252" y="212" font-size="12.5" fill="#3d4048">Gemini 4 Argon（半程）</text>
+
+        <line x1="252" y1="230" x2="428" y2="230" stroke="#eeeae2"/>
+        <text x="252" y="250" font-size="11" fill="#9398a0">输出</text>
+        <text x="252" y="269" font-size="12.5" fill="#14161a">文字 + 语音（流式）</text>
+        <text x="252" y="291" font-size="11" fill="#9398a0">考核</text>
+        <text x="252" y="310" font-size="12.5" fill="#14161a">首包延迟 · 双工 · 语种</text>
+        <text x="252" y="332" font-size="10.5" fill="#9398a0">缺口：输入有音频，输出只有字</text>
+
+        <!-- C 生成 -->
+        <rect x="468" y="58" width="212" height="292" rx="4" fill="#ffffff" stroke="#e2ddd3"/>
+        <rect x="468" y="58" width="212" height="5" rx="2" fill="#6b3fa0"/>
+        <text x="486" y="90" font-size="11" fill="#9398a0" letter-spacing="1.4">C · MAKE</text>
+        <text x="486" y="118" font-size="19" font-weight="700" fill="#14161a">生成</text>
+        <text x="486" y="141" font-size="12.5" fill="#6b7079">一次成片，声音和画面同源</text>
+
+        <text x="486" y="172" font-size="12.5" fill="#3d4048">Seedance 2.5</text>
+        <text x="486" y="192" font-size="12.5" fill="#3d4048">MiniMax H3</text>
+        <text x="486" y="212" font-size="12.5" fill="#3d4048">Gemini Omni 1.2 Flash</text>
+
+        <line x1="486" y1="230" x2="662" y2="230" stroke="#eeeae2"/>
+        <text x="486" y="250" font-size="11" fill="#9398a0">输出</text>
+        <text x="486" y="269" font-size="12.5" fill="#14161a">视频 + 音频</text>
+        <text x="486" y="291" font-size="11" fill="#9398a0">考核</text>
+        <text x="486" y="310" font-size="12.5" fill="#14161a">Elo · 每秒成本 · 返工率</text>
+        <text x="486" y="332" font-size="10.5" fill="#9398a0">它不回答「图里写了什么」</text>
+
+        <line x1="0" y1="370" x2="680" y2="370" stroke="#e2ddd3"/>
+        <text class="sn" x="0" y="392">三栏之间没有高低之分，只有交付物不同：一栏交结论，一栏交对话，一栏交素材。</text>
+      </svg>
+    </div>
+    <figcaption>这张图是本期所有判断的底稿。后面每一张榜，都只在其中一栏内有效——跨栏比分数是没意义的。</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 03 矩阵与对照表 ============ -->
+<section id="table">
+  <div class="sec-head"><span class="sec-num">03</span><h2>模态覆盖矩阵：谁真的吃进去了</h2></div>
+  <p class="sec-sub">宣传语里个个「全模态」，落到模型页的模态字段上，差别立刻显出来。实心点＝官方文档明确支持，浅点＝部分支持或需工具，空心＝不支持。</p>
+
+  <div class="mx-wrap">
+    <table class="mod">
+      <thead>
+        <tr>
+          <th>模型</th>
+          <th>文本</th><th>图像</th><th>音频</th><th>视频</th><th>出文</th><th>出语音</th><th>出图</th><th>出视频</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="name">Qwen3-VL-235B-A22B</td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot on"></span></td>
+          <td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td>
+        </tr>
+        <tr>
+          <td class="name">Qwen3-Omni-30B-A3B</td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot on"></span></td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td>
+        </tr>
+        <tr>
+          <td class="name">Qwen4-Max</td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot half"></span></td><td><span class="dot half"></span></td>
+          <td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td>
+        </tr>
+        <tr>
+          <td class="name">GPT-6.1 Terra / 6.2 Astra</td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td>
+          <td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td>
+        </tr>
+        <tr>
+          <td class="name">Gemini 4 Argon</td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot on"></span></td>
+          <td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td>
+        </tr>
+        <tr>
+          <td class="name">Seed 2.1 Pro（豆包）</td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot half"></span></td><td><span class="dot on"></span></td>
+          <td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td>
+        </tr>
+        <tr>
+          <td class="name">Kimi K3.1 Pro</td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot on"></span></td>
+          <td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td>
+        </tr>
+        <tr>
+          <td class="name">GLM-4.6V / 4.6V-Flash</td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot half"></span></td>
+          <td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td>
+        </tr>
+        <tr>
+          <td class="name">DeepSeek V4 Flash Vision</td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td>
+          <td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td><td><span class="dot off"></span></td>
+        </tr>
+        <tr>
+          <td class="name">Seedance 2.5</td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot on"></span></td>
+          <td><span class="dot off"></span></td><td><span class="dot on"></span></td><td><span class="dot half"></span></td><td><span class="dot on"></span></td>
+        </tr>
+        <tr>
+          <td class="name">MiniMax H3</td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot on"></span></td>
+          <td><span class="dot off"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot on"></span></td>
+        </tr>
+        <tr>
+          <td class="name">Gemini Omni 1.2 Flash</td>
+          <td><span class="dot on"></span></td><td><span class="dot on"></span></td><td><span class="dot half"></span></td><td><span class="dot half"></span></td>
+          <td><span class="dot off"></span></td><td><span class="dot on"></span></td><td><span class="dot off"></span></td><td><span class="dot on"></span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">矩阵只记官方模型页/模型卡写明的模态，社区传闻不计。半实心说明「能做但不在主路径上」：例如 Gemini Omni 的音频是随视频一起出的，不是独立配音轨；Qwen4-Max 的音视频输入目前只有产品侧宣传，API 文档未列为独立模态。</p>
+
+  <div style="height:34px"></div>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>模型</th><th>规模 / 激活</th><th>上下文</th><th>输入</th><th>输出</th><th>权重</th><th>价格（每百万 token 或每秒）</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="vendor"><i style="background:#4c5fd5"></i>Qwen3-VL-235B-A22B</td>
+          <td><span class="m">235B / 22B</span><span class="m-sub">MoE，另有 4B–32B 稠密档</span></td>
+          <td><span class="m">256K → 1M</span></td>
+          <td><span class="m">文 · 图 · 视频</span></td>
+          <td><span class="m">文</span></td>
+          <td><span class="tag ok">Apache 2.0</span></td>
+          <td><span class="m">按部署</span><span class="m-sub">8B 档第三方约 $0.25 / $0.75</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#4c5fd5"></i>Qwen3-VL-Plus</td>
+          <td><span class="m">未公开</span><span class="m-sub">token 级早期融合</span></td>
+          <td><span class="m">256K</span></td>
+          <td><span class="m">文 · 图</span></td>
+          <td><span class="m">文 + 版面 / HTML</span></td>
+          <td><span class="tag">闭源 API</span></td>
+          <td><span class="m">按量</span><span class="m-sub">配套轻量 SDK 对中小企业免费商用</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#4c5fd5"></i>Qwen3-Omni-30B-A3B</td>
+          <td><span class="m">30B / 3B</span><span class="m-sub">Thinker + Talker 双 MoE</span></td>
+          <td><span class="m">32K 训练 / 长音频流式</span></td>
+          <td><span class="m">文 · 图 · 音 · 视频</span></td>
+          <td><span class="m">文 + 语音</span></td>
+          <td><span class="tag ok">开源</span></td>
+          <td><span class="m">自部署</span><span class="m-sub">15s 视频 BF16 约 79GB 显存</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#4c5fd5"></i>Qwen4-Max</td>
+          <td><span class="m">2.4T / 71B</span><span class="m-sub">QSA 稀疏注意力</span></td>
+          <td><span class="m">1M</span></td>
+          <td><span class="m">原生视觉 + 文</span></td>
+          <td><span class="m">文</span></td>
+          <td><span class="tag">闭源 API</span></td>
+          <td><span class="m">缓存命中 ¥0.5</span><span class="m-sub">单任务成本较上代 −58%</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#14161a"></i>GPT-6.1 Terra</td>
+          <td><span class="m">未公开</span><span class="m-sub">视觉推理 + 电脑操作</span></td>
+          <td><span class="m">1.05M</span></td>
+          <td><span class="m">文 · 图</span></td>
+          <td><span class="m">文</span></td>
+          <td><span class="tag">闭源</span></td>
+          <td><span class="m">$1 / $5</span><span class="m-sub">缓存输入 $0.30</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#14161a"></i>GPT-6.2 Astra</td>
+          <td><span class="m">未公开</span><span class="m-sub">旗舰推理</span></td>
+          <td><span class="m">1.05M</span></td>
+          <td><span class="m">文 · 图</span></td>
+          <td><span class="m">文</span></td>
+          <td><span class="tag">闭源</span></td>
+          <td><span class="m">$8 / $40</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#2b6cb0"></i>Gemini 4 Argon</td>
+          <td><span class="m">未公开</span><span class="m-sub">原生多模态</span></td>
+          <td><span class="m">1M 统一窗口</span></td>
+          <td><span class="m">文 · 图 · 音 · 视频 · PDF</span></td>
+          <td><span class="m">文</span></td>
+          <td><span class="tag">闭源</span></td>
+          <td><span class="m">$2 / $10</span><span class="m-sub">12/1 起 $4 / $20</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#c4622d"></i>Seed 2.1 Pro</td>
+          <td><span class="m">未公开</span><span class="m-sub">闭源旗舰</span></td>
+          <td><span class="m">1M（0915 版）</span></td>
+          <td><span class="m">文 · 图 · 视频</span></td>
+          <td><span class="m">文</span></td>
+          <td><span class="tag">闭源</span></td>
+          <td><span class="m">¥6 / ¥30</span><span class="m-sub">缓存 ¥1.2</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#1f6f5c"></i>Kimi K3.1 Pro</td>
+          <td><span class="m">未公开</span><span class="m-sub">稀疏 MoE，3T 级</span></td>
+          <td><span class="m">1M</span></td>
+          <td><span class="m">文 · 图 · 视频</span></td>
+          <td><span class="m">文</span></td>
+          <td><span class="tag ok">开放权重</span></td>
+          <td><span class="m">$2 / $10</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#0e7490"></i>GLM-4.6V</td>
+          <td><span class="m">106B</span><span class="m-sub">Flash 版 9B</span></td>
+          <td><span class="m">128K</span></td>
+          <td><span class="m">文 · 图 · 页面</span></td>
+          <td><span class="m">文 + 工具调用</span></td>
+          <td><span class="tag ok">开源</span></td>
+          <td><span class="m">$0.30 / $0.90</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#8a8f98"></i>DeepSeek V4 Flash Vision</td>
+          <td><span class="m">未公开</span><span class="m-sub">标注 Experimental</span></td>
+          <td><span class="m">未公开</span></td>
+          <td><span class="m">文 · 图</span></td>
+          <td><span class="m">文</span></td>
+          <td><span class="tag warn">实验版</span></td>
+          <td><span class="m">$0.216 / $0.647</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#6b3fa0"></i>MiniMax H3</td>
+          <td><span class="m">33B 稠密</span><span class="m-sub">其中约 13B 在 AdaLN 分支可缓存</span></td>
+          <td><span class="m">单条 4–15s</span></td>
+          <td><span class="m">文 · 图 · 音 · 视频参考</span></td>
+          <td><span class="m">视频 + 32kHz 立体声</span></td>
+          <td><span class="tag plan">部分开源</span></td>
+          <td><span class="m">2K 约 ¥0.8 / 秒</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#c4622d"></i>Seedance 2.5</td>
+          <td><span class="m">未公开</span><span class="m-sub">双分支扩散 Transformer</span></td>
+          <td><span class="m">单条 4–30s</span></td>
+          <td><span class="m">文 · 图 · 音 · 视频（50 参考）</span></td>
+          <td><span class="m">4K 10-bit 视频 + 音频</span></td>
+          <td><span class="tag">闭源</span></td>
+          <td><span class="m">5s 720p $1.156</span><span class="m-sub">约 $34 / 分钟输出</span></td>
+        </tr>
+        <tr>
+          <td class="vendor"><i style="background:#2b6cb0"></i>Gemini Omni 1.2 Flash</td>
+          <td><span class="m">未公开</span><span class="m-sub">视频生成</span></td>
+          <td><span class="m">单条最长 15s</span></td>
+          <td><span class="m">文 · 图</span></td>
+          <td><span class="m">视频 + 音频</span></td>
+          <td><span class="tag">闭源</span></td>
+          <td><span class="m">$0.07 / 秒（720p）</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">价格保留各家原币种，不换算——汇率和区域定价会让换算后的数字看起来比实际更精确。生成类模型的「每秒」只算输出，不含废片返工。</p>
+</section>
+
+<!-- ============ 04 榜单 ============ -->
+<section id="boards">
+  <div class="sec-head"><span class="sec-num">04</span><h2>三张榜，三种真相</h2></div>
+  <p class="sec-sub">下面三张图分别对应三条产品线。每张图都标了口径，因为这一节最容易断章取义。</p>
+
+  <div class="figs">
+    <figure class="fig">
+      <div class="fig-head">
+        <h3>理解侧：MMMU-Pro 头部八名</h3>
+        <span>第三方汇总，2026-11-21</span>
+      </div>
+      <div class="fig-scroll">
+        <svg class="chart" viewBox="0 0 680 400" role="img" aria-label="MMMU-Pro 头部模型得分条形图，GPT-6.1 Terra 85.5 居首，Kimi K3.1 Pro 84.1 第二">
+          <text class="sn" x="0" y="12">得分（%），轴起点 78，不是 0</text>
+
+          <!-- rows -->
+          <text class="sl" x="0" y="52">GPT-6.1 Terra</text>
+          <rect x="168" y="38" width="441" height="20" fill="#3a46c9"/>
+          <text class="sv" x="618" y="53">85.5</text>
+
+          <text class="sl" x="0" y="94">Kimi K3.1 Pro</text>
+          <rect x="168" y="80" width="358" height="20" fill="#1f6f5c"/>
+          <text class="sv" x="535" y="95">84.1</text>
+
+          <text class="sl" x="0" y="136">Gemini 3.5 Flash</text>
+          <rect x="168" y="122" width="329" height="20" fill="#2b6cb0"/>
+          <text class="sv" x="506" y="137">83.6</text>
+
+          <text class="sl" x="0" y="178">GPT-5.6 Sol</text>
+          <rect x="168" y="164" width="294" height="20" fill="#14161a" opacity=".55"/>
+          <text class="sv" x="471" y="179">83.0</text>
+
+          <text class="sl" x="0" y="220">Qwen3.8-Max</text>
+          <rect x="168" y="206" width="253" height="20" fill="#4c5fd5"/>
+          <text class="sv" x="430" y="221">82.3</text>
+
+          <text class="sl" x="0" y="262">Seed 2.1 Pro（带工具）</text>
+          <rect x="168" y="248" width="212" height="20" fill="#c4622d"/>
+          <text class="sv" x="389" y="263">81.6</text>
+
+          <text class="sl" x="0" y="304">Gemini 3 Pro</text>
+          <rect x="168" y="290" width="176" height="20" fill="#2b6cb0" opacity=".5"/>
+          <text class="sv" x="353" y="305">81.0</text>
+
+          <text class="sl" x="0" y="346">Hy4（腾讯）</text>
+          <rect x="168" y="332" width="35" height="20" fill="#8a8f98"/>
+          <text class="sv" x="212" y="347">78.6</text>
+
+          <line x1="168" y1="368" x2="609" y2="368" stroke="#e2ddd3"/>
+          <text class="sn" x="0" y="390">同一周，另两个榜把 GPT-6.1 Sol 记成 85.95%、Claude Opus 5.5 记成 87.7%。三个第一名，三种口径。</text>
+        </svg>
+      </div>
+      <figcaption>
+        这张图最能说明「多模态理解」的现状：头部八名挤在 78.6–85.5 的七分区间里，闭源与开放权重交错，已经分不出代差。
+        但请注意三个细节：① 全部是厂商自报，没有一条是 benchmark 官方独立跑的；② Seed 2.1 Pro 的成绩带工具，不带工具的分数更低；③ 换一个汇总站，第一名就换人。
+      </figcaption>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-head">
+        <h3>视频理解：换一套严格协议，全体掉 30 分</h3>
+        <span>左：常规榜 / 右：Video-MME v2 严格协议</span>
+      </div>
+      <div class="fig-scroll">
+        <svg class="chart" viewBox="0 0 680 330" role="img" aria-label="视频理解常规榜与严格协议榜对比，严格协议下人类90.7分、最强闭源49.4分、最强开源39.1分">
+          <text class="h" x="0" y="14">常规 Video-MME（带字幕）</text>
+          <text class="h" x="360" y="14">Video-MME v2（严格协议）</text>
+
+          <!-- 左 -->
+          <text class="sl" x="0" y="52">Kimi K3（Max）</text>
+          <rect x="130" y="38" width="150" height="18" fill="#1f6f5c"/>
+          <text class="sv" x="288" y="52">90.0</text>
+
+          <text class="sl" x="0" y="90">Seed 2.1 Pro</text>
+          <rect x="130" y="76" width="148.7" height="18" fill="#c4622d"/>
+          <text class="sv" x="286" y="90">89.2</text>
+
+          <text class="sl" x="0" y="128">Qwen3-VL-235B</text>
+          <rect x="130" y="114" width="131.7" height="18" fill="#4c5fd5"/>
+          <text class="sv" x="269" y="128">79.0</text>
+
+          <text class="sn" x="0" y="158">刻度 0–100，条长按比例</text>
+
+          <!-- 分隔 -->
+          <line x1="340" y1="30" x2="340" y2="300" stroke="#e2ddd3"/>
+
+          <!-- 右 -->
+          <text class="sl" x="360" y="52">人类</text>
+          <rect x="430" y="38" width="151" height="18" fill="#14161a"/>
+          <text class="sv" x="589" y="52">90.7</text>
+
+          <text class="sl" x="360" y="90">最强闭源</text>
+          <rect x="430" y="76" width="82.3" height="18" fill="#3a46c9"/>
+          <text class="sv" x="520" y="90">49.4</text>
+
+          <text class="sl" x="360" y="128">最强开源</text>
+          <rect x="430" y="114" width="65.2" height="18" fill="#1f6f5c"/>
+          <text class="sv" x="503" y="128">39.1</text>
+
+          <text class="sn" x="360" y="158">题组评分，不能与左栏混排</text>
+
+          <line x1="0" y1="188" x2="680" y2="188" stroke="#e2ddd3"/>
+          <text class="sl" x="0" y="216">换协议后的落差：最强闭源从 ~85 掉到 49.4，约 −35 分；人类几乎不动（90.7）。</text>
+          <text class="sn" x="0" y="240">旧协议被估计整体高估约 17 分，原因是题目可单题作答、字幕与采样更宽松。</text>
+          <text class="sn" x="0" y="262">结论不是「视频理解退步了」，而是「我们之前量错了」。</text>
+          <text class="sn" x="0" y="292">对选型的含义：任何宣称 85+ 视频分的模型，先问一句——哪个协议、多少帧、给不给字幕。</text>
+        </svg>
+      </div>
+      <figcaption>
+        右栏那三个数字（90.7 / 49.4 / 39.1）是本期最该记住的一组。它意味着视频理解离「可信地讲清一段两小时录像里发生了什么」还有很长的路，尽管厂商发布会上的数字一直很好看。
+      </figcaption>
+    </figure>
+
+    <figure class="fig">
+      <div class="fig-head">
+        <h3>生成侧：Elo 领先，和每分钟贵七倍，是同一件事</h3>
+        <span>图生视频 Elo + 输出成本</span>
+      </div>
+      <div class="fig-scroll">
+        <svg class="chart" viewBox="0 0 680 400" role="img" aria-label="视频生成模型图生视频Elo与每分钟成本对比，Seedance 2.5 1161 Elo 每分钟34.12美元，MiniMax H3 每分钟4.80美元">
+          <text class="h" x="0" y="14">图生视频 Elo（Artificial Analysis）</text>
+
+          <text class="sl" x="0" y="52">Seedance 2.5</text>
+          <rect x="150" y="38" width="383" height="20" fill="#c4622d"/>
+          <text class="sv" x="543" y="53">1161 · 第 1</text>
+
+          <text class="sl" x="0" y="92">Seedance 2.0</text>
+          <rect x="150" y="78" width="258" height="20" fill="#c4622d" opacity=".55"/>
+          <text class="sv" x="418" y="93">1141 · 第 3</text>
+
+          <text class="sl" x="0" y="132">MiniMax H3</text>
+          <circle cx="153" cy="128" r="3.5" fill="#6b3fa0"/>
+          <line x1="150" y1="128" x2="590" y2="128" stroke="#ddd8cd" stroke-dasharray="3 4"/>
+          <rect x="161" y="119" width="182" height="18" fill="#ffffff"/>
+          <text class="sv" x="163" y="133" fill="#6b3fa0">未公开 Elo · 榜位第 4</text>
+
+          <text class="sn" x="0" y="162">Elo 轴 1100–1170，按同一比例；H3 无公开 Elo，只记榜位</text>
+
+          <line x1="0" y1="188" x2="680" y2="188" stroke="#e2ddd3"/>
+
+          <text class="h" x="0" y="212">每分钟输出成本（美元，官方/第三方口径）</text>
+          <text class="sl" x="0" y="248">Seedance 2.5</text>
+          <rect x="150" y="234" width="420" height="20" fill="#c4622d"/>
+          <text class="sv" x="580" y="249">$34.12</text>
+
+          <text class="sl" x="0" y="288">MiniMax H3</text>
+          <rect x="150" y="274" width="59" height="20" fill="#6b3fa0"/>
+          <text class="sv" x="219" y="289">$4.80</text>
+
+          <line x1="150" y1="310" x2="570" y2="310" stroke="#e2ddd3"/>
+          <text class="sn" x="0" y="332">约 7.1×。一条 30 秒的品牌片，差价是几十美元；一批 200 条的社媒素材，差价是模型选型本身。</text>
+          <text class="sn" x="0" y="356">质量差距（Elo 1161 vs 榜位 4）是真的，成本差距也是真的——这两个数字必须一起看。</text>
+          <text class="sn" x="0" y="380">榜位每周变。以上读取自 11/17–11/18 的公开快照，不是长期结论。</text>
+        </svg>
+      </div>
+      <figcaption>
+        这张图是本期的核心 trade-off。Seedance 2.5 在质量上确实领先，但它的单位成本是 H3 的七倍。做品牌片时这七倍可以忽略（人力成本远高于它）；做批量投放时，这七倍直接决定项目做不做得成。
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 05 厂商卡 ============ -->
+<section id="brands">
+  <div class="sec-head"><span class="sec-num">05</span><h2>八家厂商，各挑一个本期主角</h2></div>
+  <p class="sec-sub">每张卡只讲一件事：这一家这个月真正的变化在哪，以及什么地方容易看错。图都是结构示意，不是精确架构图。</p>
+
+  <div class="brands">
+
+    <!-- 阿里 -->
+    <article class="brand" style="--b:#4c5fd5">
+      <div class="brand-top">
+        <div class="brand-name"><h3>阿里 · 通义千问</h3><span class="brand-date">11-09 / 11-16</span></div>
+        <div class="model">Qwen3-VL-Plus</div>
+        <p class="role">三条线同时走：VL 看懂、Omni 听说、Qwen4 把视觉塞进基座</p>
+      </div>
+      <div class="brand-body">
+        <div class="metrics">
+          <div class="metric"><b>235B</b><span>VL 旗舰总参数 / 22B 激活</span></div>
+          <div class="metric"><b>256K</b><span>原生多模态上下文，可扩到 1M</span></div>
+          <div class="metric"><b>119</b><span>Omni 支持的文本语种</span></div>
+          <div class="metric"><b>234ms</b><span>Omni 音频首包（单并发）</span></div>
+        </div>
+
+        <div class="cell-fig">
+          <div class="cell-cap">三条线的关系</div>
+          <svg class="chart" viewBox="0 0 440 182" role="img" aria-label="Qwen 三条产品线：Qwen4-Max 基座、Qwen3-VL 视觉理解、Qwen3-Omni 语音交互，共用 Qwen3 骨干">
+            <rect x="0" y="4" width="440" height="38" rx="3" fill="#4c5fd5"/>
+            <text x="14" y="22" fill="#fff" font-size="12.5" font-weight="700">Qwen4-Max</text>
+            <text x="14" y="36" fill="#dfe2fb" font-size="11">2.4T / 71B 激活 · 原生视觉 · 1M 上下文</text>
+            <text x="426" y="26" text-anchor="end" fill="#fff" font-size="11">基座</text>
+
+            <rect x="0" y="56" width="212" height="46" rx="3" fill="#fff" stroke="#c9c4ba"/>
+            <text x="12" y="74" fill="#14161a" font-size="12.5" font-weight="700">Qwen3-VL</text>
+            <text x="12" y="90" fill="#4a4e56" font-size="11">看图 / 看视频 / 看界面</text>
+
+            <rect x="228" y="56" width="212" height="46" rx="3" fill="#fff" stroke="#c9c4ba"/>
+            <text x="240" y="74" fill="#14161a" font-size="12.5" font-weight="700">Qwen3-Omni</text>
+            <text x="240" y="90" fill="#4a4e56" font-size="11">听 + 想 + 说，流式</text>
+
+            <line x1="36" y1="42" x2="36" y2="56" stroke="#b9bed9" stroke-width="1.5"/>
+            <line x1="336" y1="42" x2="336" y2="56" stroke="#b9bed9" stroke-width="1.5"/>
+
+            <rect x="0" y="118" width="440" height="34" rx="3" fill="#f4f5fd" stroke="#dfe2fb"/>
+            <text x="12" y="140" fill="#3a46c9" font-size="11.5">同一套 Qwen3 语言骨干：换编码器 / 换输出头，不换脑子</text>
+
+            <text class="sn" x="0" y="174">VL 用 Qwen3-ViT，Omni 用 AuT + SigLIP2 初始化的视觉塔。</text>
+          </svg>
+        </div>
+
+        <div class="block">
+          <h4>真正的新东西</h4>
+          <p>VL 这一代有三处实打实的结构改动：<b>DeepStack</b> 把 ViT 多层特征都接进 LLM，不再只取最后一层（文档和图表收益最大）；<b>文本-时间戳对齐</b>取代 T-RoPE，让视频里的秒级定位有了锚点；OCR 语种从 10 提到 32。Plus 版则把 token 级早期融合用到了产线上——百万级图纸批量解析，配一套对中小企业免费商用的轻量 SDK。</p>
+        </div>
+        <div class="block">
+          <h4>注意</h4>
+          <p>官方技术报告自己写了：视频评测时给 Qwen3-VL 的上限是 2048 帧，而 Gemini 512 帧、GPT-5 256 帧——这个对比不完全公平。反过来说，给到四倍帧数仍没在这些榜上反超，说明长视频不只是帧数问题。</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- OpenAI -->
+    <article class="brand" style="--b:#14161a">
+      <div class="brand-top">
+        <div class="brand-name"><h3>OpenAI</h3><span class="brand-date">10-26 / 11-17</span></div>
+        <div class="model">GPT-6.1 Terra</div>
+        <p class="role">主动收窄模态，把「看图」和「动手」绑在一起</p>
+      </div>
+      <div class="brand-body">
+        <div class="metrics">
+          <div class="metric"><b>85.5%</b><span>MMMU-Pro（厂商自报）</span></div>
+          <div class="metric"><b>1.05M</b><span>上下文窗口</span></div>
+          <div class="metric"><b>$1 / $5</b><span>输入 / 输出，旗舰的 1/8</span></div>
+          <div class="metric"><b>2</b><span>官方模态表里的输入类型</span></div>
+        </div>
+
+        <div class="cell-fig">
+          <div class="cell-cap">模态入口</div>
+          <svg class="chart" viewBox="0 0 440 162" role="img" aria-label="GPT-6.1 Terra 的输入只有文本与图像，音频和视频不在官方模态表内">
+            <rect x="0" y="10" width="64" height="24" rx="3" fill="#14161a"/>
+            <text x="32" y="26" text-anchor="middle" fill="#fff" font-size="11.5">文本</text>
+            <rect x="0" y="42" width="64" height="24" rx="3" fill="#2b6cb0"/>
+            <text x="32" y="58" text-anchor="middle" fill="#fff" font-size="11.5">图像</text>
+
+            <rect x="0" y="88" width="64" height="24" rx="3" fill="#fff" stroke="#c9c4ba" stroke-dasharray="4 3"/>
+            <text x="32" y="104" text-anchor="middle" fill="#9398a0" font-size="11.5">音频</text>
+            <rect x="0" y="118" width="64" height="24" rx="3" fill="#fff" stroke="#c9c4ba" stroke-dasharray="4 3"/>
+            <text x="32" y="134" text-anchor="middle" fill="#9398a0" font-size="11.5">视频</text>
+            <text x="70" y="105" font-size="11" fill="#c0392b">✕</text>
+            <text x="70" y="135" font-size="11" fill="#c0392b">✕</text>
+
+            <line x1="68" y1="22" x2="118" y2="34" stroke="#14161a" stroke-width="1.4"/>
+            <line x1="68" y1="54" x2="118" y2="50" stroke="#2b6cb0" stroke-width="1.4"/>
+
+            <rect x="120" y="10" width="174" height="88" rx="4" fill="#fff" stroke="#14161a" stroke-width="1.4"/>
+            <text x="134" y="34" fill="#14161a" font-size="12.5" font-weight="700">GPT-6.1 Terra</text>
+            <text x="134" y="52" fill="#4a4e56" font-size="11">视觉推理 + 电脑操作</text>
+            <text x="134" y="69" fill="#4a4e56" font-size="11">推理档 none → max</text>
+            <text x="134" y="86" fill="#9398a0" font-size="10.5">OSWorld 2.1 / 图纸 / 表单</text>
+
+            <line x1="298" y1="54" x2="330" y2="54" stroke="#14161a" stroke-width="1.5"/>
+            <polygon points="330,50 336,54 330,58" fill="#14161a"/>
+            <rect x="340" y="40" width="100" height="28" rx="3" fill="#f2f0ec" stroke="#e2ddd3"/>
+            <text x="390" y="58" text-anchor="middle" fill="#14161a" font-size="11.5">文本 / JSON</text>
+
+            <text class="sn" x="0" y="156">音频 / 视频不在官方模态表内，需外部工具先转写、抽帧</text>
+          </svg>
+        </div>
+
+        <div class="block">
+          <h4>真正的新东西</h4>
+          <p>Terra 的定位不是「更小的旗舰」，而是<b>把视觉判断接到动作上</b>：读技术图纸、匹配商品目录、填表单、编辑视频。官方给的对照是，中等推理强度下 Agents' Last Exam 比上一代 Terra 高 15 个百分点，达到同等成绩的单任务成本约三分之一；OSWorld 2.1 上超过了 GPT-5.6 Terra 的最高分。</p>
+        </div>
+        <div class="block">
+          <h4>注意</h4>
+          <p>官方模型页的模态字段只有<b>文本与图像</b>。市面上有研报称 Astra 支持音视频实时联合解析，这与官方文档冲突，本文按官方口径记。另外「能看图」不等于「能生图」，那条产品线是另一个模型。</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- Google -->
+    <article class="brand" style="--b:#2b6cb0">
+      <div class="brand-top">
+        <div class="brand-name"><h3>Google DeepMind</h3><span class="brand-date">10-13 / 11-09</span></div>
+        <div class="model">Gemini 4 Argon</div>
+        <p class="role">五模态进、文本出；生成交给另一条线的 Omni</p>
+      </div>
+      <div class="brand-body">
+        <div class="metrics">
+          <div class="metric"><b>5</b><span>官方列出的输入模态（含 PDF）</span></div>
+          <div class="metric"><b>1M</b><span>输入输出共享的统一窗口</span></div>
+          <div class="metric"><b>91.7%</b><span>LVBench 长视频（厂商口径）</span></div>
+          <div class="metric"><b>1</b><span>输出模态：只有文本</span></div>
+        </div>
+
+        <div class="cell-fig">
+          <div class="cell-cap">输入都进得去，输出只有一路</div>
+          <svg class="chart" viewBox="0 0 440 170" role="img" aria-label="Gemini 4 Argon 五种输入汇入统一上下文窗口，输出仅为文本">
+            <g font-size="11" text-anchor="middle">
+              <rect x="0" y="4" width="58" height="20" rx="3" fill="#14161a"/><text x="29" y="18" fill="#fff">文</text>
+              <rect x="0" y="30" width="58" height="20" rx="3" fill="#2b6cb0"/><text x="29" y="44" fill="#fff">图</text>
+              <rect x="0" y="56" width="58" height="20" rx="3" fill="#c4622d"/><text x="29" y="70" fill="#fff">音</text>
+              <rect x="0" y="82" width="58" height="20" rx="3" fill="#6b3fa0"/><text x="29" y="96" fill="#fff">视频</text>
+              <rect x="0" y="108" width="58" height="20" rx="3" fill="#8a8f98"/><text x="29" y="122" fill="#fff">PDF</text>
+            </g>
+
+            <path d="M62 14 L92 60 M62 40 L92 66 M62 66 L92 72 M62 92 L92 78 M62 118 L92 84" stroke="#c9c4ba" stroke-width="1.2" fill="none"/>
+
+            <rect x="94" y="40" width="150" height="60" rx="4" fill="#f4f7fb" stroke="#2b6cb0" stroke-width="1.4"/>
+            <text x="169" y="62" text-anchor="middle" fill="#14161a" font-size="12" font-weight="700">1M 统一窗口</text>
+            <text x="169" y="80" text-anchor="middle" fill="#6b7079" font-size="10.5">输入 + 思考 + 输出共享</text>
+
+            <line x1="248" y1="70" x2="286" y2="70" stroke="#2b6cb0" stroke-width="1.5"/>
+            <polygon points="286,66 292,70 286,74" fill="#2b6cb0"/>
+            <rect x="296" y="52" width="58" height="36" rx="3" fill="#fff" stroke="#14161a"/>
+            <text x="325" y="74" text-anchor="middle" fill="#14161a" font-size="11.5">文本</text>
+
+            <line x1="296" y1="104" x2="354" y2="104" stroke="#e2ddd3"/>
+            <text x="300" y="124" font-size="10.5" fill="#b8342a">✕ 不生图</text>
+            <text x="300" y="140" font-size="10.5" fill="#b8342a">✕ 不生音频</text>
+            <text x="300" y="156" font-size="10.5" fill="#b8342a">✕ 无 Live API</text>
+          </svg>
+        </div>
+
+        <div class="block">
+          <h4>真正的新东西</h4>
+          <p>原生是真的原生：一段 MP3 能分析编曲、配器、情绪并倒推提示词；一段纯音频能反推画面结构。这类任务在「ASR 转写 + LLM」的拼装链路上做不出来，因为信息在转写那一步就丢了。另外它把<b>长解码</b>做到与窗口同量级，跨请求接续，专治 Agent 长任务的超时断流。</p>
+        </div>
+        <div class="block">
+          <h4>注意</h4>
+          <p>它是理解模型，不是生成模型——生成那条线是 Gemini Omni 1.2 Flash（T2V/I2V 双榜第一，720p $0.07/秒，最长 15 秒）。还有一件事要写进预算：Argon 现在是上线半价 $2/$10，<b>12 月 1 日翻倍到 $4/$20</b>。</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- 字节 -->
+    <article class="brand" style="--b:#c4622d">
+      <div class="brand-top">
+        <div class="brand-name"><h3>字节跳动 · Seed</h3><span class="brand-date">07-31 / 09-15</span></div>
+        <div class="model">Seedance 2.5</div>
+        <p class="role">理解靠 Seed，生成靠 Seedance，两条腿都很粗</p>
+      </div>
+      <div class="brand-body">
+        <div class="metrics">
+          <div class="metric"><b>30s / 4K</b><span>单次生成上限，10-bit</span></div>
+          <div class="metric"><b>50</b><span>单次可用的多模态参考文件</span></div>
+          <div class="metric"><b>82.7</b><span>Seed 2.1 Pro 的 MMMU-Pro（带工具）</span></div>
+          <div class="metric"><b>$34.12</b><span>每分钟输出成本</span></div>
+        </div>
+
+        <div class="cell-fig">
+          <div class="cell-cap">四条产品线</div>
+          <svg class="chart" viewBox="0 0 440 168" role="img" aria-label="字节 Seed 家族四条产品线：Seed 理解、Seedance 视频、Seedream 图像、Seed Audio 音频">
+            <rect x="0" y="6" width="104" height="66" rx="3" fill="#c4622d"/>
+            <text x="12" y="27" fill="#fff" font-size="12.5" font-weight="700">Seed 2.1</text>
+            <text x="12" y="45" fill="#fbe6da" font-size="10.5">读图 · 读视频</text>
+            <text x="12" y="61" fill="#fbe6da" font-size="10.5">MMMU-Pro 82.7</text>
+
+            <rect x="112" y="6" width="104" height="66" rx="3" fill="#fff" stroke="#c4622d" stroke-width="1.6"/>
+            <text x="124" y="27" fill="#14161a" font-size="12.5" font-weight="700">Seedance 2.5</text>
+            <text x="124" y="45" fill="#4a4e56" font-size="10.5">30s 4K 音画同源</text>
+            <text x="124" y="61" fill="#4a4e56" font-size="10.5">I2V Elo 1161</text>
+
+            <rect x="224" y="6" width="104" height="66" rx="3" fill="#fff" stroke="#c9c4ba"/>
+            <text x="236" y="27" fill="#14161a" font-size="12.5" font-weight="700">Seedream 5.5</text>
+            <text x="236" y="45" fill="#4a4e56" font-size="10.5">图像生成 / 精修</text>
+            <text x="236" y="61" fill="#9398a0" font-size="10.5">AA 榜位有出入</text>
+
+            <rect x="336" y="6" width="104" height="66" rx="3" fill="#fff" stroke="#c9c4ba"/>
+            <text x="348" y="27" fill="#14161a" font-size="12.5" font-weight="700">Seed Audio 1.0</text>
+            <text x="348" y="45" fill="#4a4e56" font-size="10.5">语音 / 音效</text>
+            <text x="348" y="61" fill="#9398a0" font-size="10.5">可用率 &gt;90%</text>
+
+            <line x1="0" y1="90" x2="440" y2="90" stroke="#e2ddd3"/>
+            <text class="sn" x="0" y="112">Seedance 2.5 的关键不是 4K，是「480p 草稿 → 4K 正片」这条工作流：</text>
+            <text class="sn" x="0" y="130">先用便宜的档位验分镜，再只为通过的那几条付 4K 的钱。</text>
+            <text class="sn" x="0" y="152">50 个参考（30 图 / 10 视频 / 10 音频）是为了解决角色漂移，不是炫技。</text>
+          </svg>
+        </div>
+
+        <div class="block">
+          <h4>真正的新东西</h4>
+          <p>把影视工业的「预演」环节做进了 API：480p 草稿验证分镜，再生成 4K；参考文件从上一代的 15 个涨到 50 个，音频也能单独作为参考。同门 Seed 2.1 的视觉理解其实比它的编程更突出——VideoMME 89.2、BabyVision 73.7，MMMU-Pro 带工具 82.7，在同代里属于第一梯队。</p>
+        </div>
+        <div class="block">
+          <h4>注意</h4>
+          <p>两件事必须一起说：一是成本，每分钟约 $34，是 H3 的七倍；二是版权，2 月那轮争议以禁令函和公开声明收场，没有可验证的诉讼，但 BytePlus 侧<b>不提供 indemnity</b>，商用前要让法务看条款，而不是看榜。</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- MiniMax -->
+    <article class="brand" style="--b:#6b3fa0">
+      <div class="brand-top">
+        <div class="brand-name"><h3>MiniMax</h3><span class="brand-date">07-31 / 08-03 开源</span></div>
+        <div class="model">MiniMax H3</div>
+        <p class="role">33B 单流，音视频在同一个 latent 里生成</p>
+      </div>
+      <div class="brand-body">
+        <div class="metrics">
+          <div class="metric"><b>33B</b><span>稠密参数，其中 13B 可预计算</span></div>
+          <div class="metric"><b>15s</b><span>单条上限，24fps</span></div>
+          <div class="metric"><b>32kHz</b><span>原生立体声，非后期配音</span></div>
+          <div class="metric"><b>¥0.8</b><span>每秒 2K，约同类 1/3</span></div>
+        </div>
+
+        <div class="cell-fig">
+          <div class="cell-cap">单流结构</div>
+          <svg class="chart" viewBox="0 0 440 172" role="img" aria-label="MiniMax H3 三段流程：上下文理解、单流音视频生成、2K 重生成">
+            <rect x="0" y="26" width="112" height="52" rx="3" fill="#f4f0fa" stroke="#6b3fa0"/>
+            <text x="12" y="44" fill="#14161a" font-size="11.5" font-weight="700">H3-Context-IR</text>
+            <text x="12" y="60" fill="#4a4e56" font-size="10">整理多模态上下文</text>
+            <text x="12" y="73" fill="#4a4e56" font-size="10">文 / 图 / 音 / 视</text>
+
+            <line x1="116" y1="52" x2="146" y2="52" stroke="#6b3fa0" stroke-width="1.4"/>
+            <polygon points="146,48 152,52 146,56" fill="#6b3fa0"/>
+
+            <rect x="154" y="14" width="130" height="76" rx="3" fill="#6b3fa0"/>
+            <text x="166" y="36" fill="#fff" font-size="11.5" font-weight="700">H3-Base</text>
+            <text x="166" y="53" fill="#e6dcf4" font-size="10.5">单流 Transformer</text>
+            <text x="166" y="69" fill="#e6dcf4" font-size="10.5">视频 + 音频同源去噪</text>
+            <text x="166" y="84" fill="#e6dcf4" font-size="10.5">33B 稠密</text>
+
+            <line x1="288" y1="52" x2="318" y2="52" stroke="#6b3fa0" stroke-width="1.4"/>
+            <polygon points="318,48 324,52 318,56" fill="#6b3fa0"/>
+
+            <rect x="326" y="26" width="114" height="52" rx="3" fill="#fff" stroke="#6b3fa0"/>
+            <text x="338" y="46" fill="#14161a" font-size="11.5" font-weight="700">Regenerate-2K</text>
+            <text x="338" y="63" fill="#4a4e56" font-size="10.5">768 → 2560×1440</text>
+
+            <text class="sn" x="0" y="108">「同源」的含义：对白口型与音效不是后期对齐的，</text>
+            <text class="sn" x="0" y="124">是在同一段去噪过程里一起长出来的。</text>
+            <text class="sn" x="0" y="144">开源只放了 H3-Base 的 FL2VA / Ref2VA；Context-IR 与</text>
+            <text class="sn" x="0" y="160">Regenerate-2K 未放，完整 2K 流程仍要走官方托管。</text>
+          </svg>
+        </div>
+
+        <div class="block">
+          <h4>真正的新东西</h4>
+          <p>它是一个「全模态生成」而不是「视频 + 配音」：输入可以是文字、图、视频、音频的任意组合，输出是带原生双声道音效的片段，对白稳定支持 11 种语言。工程上最巧的一手是把 13B 参数放进 AdaLN 分支，推理时可以预计算缓存、不必加载——社区那些「pruned」权重就是把这部分去掉了。</p>
+        </div>
+        <div class="block">
+          <h4>注意</h4>
+          <p>许可是 MiniMax H3 Community License，不是 MIT / Apache，商用前要逐条读；开源不等于全流程可复现。另外这家公司真正的优势是模态铺得最全：M3（文本，1M 上下文）、Speech 2.8、Music 3.0 都在同一条产品线上。</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- 智谱 -->
+    <article class="brand" style="--b:#0e7490">
+      <div class="brand-top">
+        <div class="brand-name"><h3>智谱 AI</h3><span class="brand-date">GLM-V 系列</span></div>
+        <div class="model">GLM-4.6V</div>
+        <p class="role">把「看见」直接接到「调用工具」，中间不要胶水代码</p>
+      </div>
+      <div class="brand-body">
+        <div class="metrics">
+          <div class="metric"><b>106B</b><span>旗舰；Flash 版 9B</span></div>
+          <div class="metric"><b>128K</b><span>上下文</span></div>
+          <div class="metric"><b>$0.30</b><span>输入每百万 token</span></div>
+          <div class="metric"><b>9B</b><span>可本地部署的那一档</span></div>
+        </div>
+
+        <div class="cell-fig">
+          <div class="cell-cap">视觉进、动作出</div>
+          <svg class="chart" viewBox="0 0 440 160" role="img" aria-label="GLM-4.6V 从截图输入到原生函数调用再到界面执行的闭环">
+            <rect x="0" y="20" width="96" height="56" rx="3" fill="#fff" stroke="#c9c4ba"/>
+            <text x="12" y="40" fill="#14161a" font-size="11.5" font-weight="700">截图 / 页面</text>
+            <text x="12" y="57" fill="#4a4e56" font-size="10.5">UI、表格、图表</text>
+            <text x="12" y="71" fill="#9398a0" font-size="10">不先转文本</text>
+
+            <line x1="100" y1="48" x2="128" y2="48" stroke="#0e7490" stroke-width="1.4"/>
+            <polygon points="128,44 134,48 128,52" fill="#0e7490"/>
+
+            <rect x="136" y="14" width="150" height="68" rx="3" fill="#0e7490"/>
+            <text x="148" y="36" fill="#fff" font-size="11.5" font-weight="700">原生函数调用</text>
+            <text x="148" y="53" fill="#d9eef3" font-size="10.5">图像可作工具入参</text>
+            <text x="148" y="69" fill="#d9eef3" font-size="10.5">视觉结果回到推理链</text>
+
+            <line x1="290" y1="48" x2="318" y2="48" stroke="#0e7490" stroke-width="1.4"/>
+            <polygon points="318,44 324,48 318,52" fill="#0e7490"/>
+
+            <rect x="326" y="20" width="114" height="56" rx="3" fill="#fff" stroke="#0e7490"/>
+            <text x="338" y="40" fill="#14161a" font-size="11.5" font-weight="700">执行</text>
+            <text x="338" y="57" fill="#4a4e56" font-size="10.5">浏览器 / IDE / 搜索</text>
+            <text x="338" y="71" fill="#9398a0" font-size="10">UI 截图 → HTML/CSS</text>
+
+            <path d="M383 80 C383 108, 64 116, 48 80" fill="none" stroke="#c9c4ba" stroke-dasharray="4 3"/>
+            <text x="208" y="122" text-anchor="middle" font-size="10.5" fill="#9398a0">渲染结果再截图，进入下一轮</text>
+            <text class="sn" x="0" y="150">闭环比单轮描述重要：Agent 要能看见自己改完长什么样。</text>
+          </svg>
+        </div>
+
+        <div class="block">
+          <h4>真正的新东西</h4>
+          <p>「原生多模态 function calling」这句话大部分厂商都在说，GLM-4.6V 是少数把机制讲清楚的：图像和截图能作为工具输入直接传下去，工具返回的视觉结果（图表、渲染页面、搜索结果图）会被解析回推理链。加上 9B 的 Flash 档可以本地跑，它是私有化多模态 Agent 目前最现实的一块积木。</p>
+        </div>
+        <div class="block">
+          <h4>注意</h4>
+          <p>官方自己列了短板：纯文本 QA 偏弱（这一代主要投在视觉）、复杂提示下会过度思考甚至自我重复、计数精度和特定人物识别仍有问题。另外如果你只是要扫 PDF 里的字，GLM-OCR 的价格是它的十分之一——别用大炮打蚊子。</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- Kimi -->
+    <article class="brand" style="--b:#1f6f5c">
+      <div class="brand-top">
+        <div class="brand-name"><h3>月之暗面 · Kimi</h3><span class="brand-date">K3.1 Pro</span></div>
+        <div class="model">Kimi K3.1 Pro</div>
+        <p class="role">开放权重里，唯一敢在 MMMU-Pro 上贴着脸打的</p>
+      </div>
+      <div class="brand-body">
+        <div class="metrics">
+          <div class="metric"><b>84.1%</b><span>MMMU-Pro，榜上第二</span></div>
+          <div class="metric"><b>90.0</b><span>Video-MME（Max 思考档）</span></div>
+          <div class="metric"><b>1M</b><span>上下文</span></div>
+          <div class="metric"><b>$2 / $10</b><span>与旗舰闭源同价</span></div>
+        </div>
+
+        <div class="cell-fig">
+          <div class="cell-cap">长视频怎么读</div>
+          <svg class="chart" viewBox="0 0 440 156" role="img" aria-label="长视频被切成时间段并定位事件">
+            <rect x="0" y="16" width="440" height="22" rx="3" fill="#eef2f0"/>
+            <rect x="0" y="16" width="92" height="22" fill="#1f6f5c"/>
+            <rect x="96" y="16" width="120" height="22" fill="#2f8b74"/>
+            <rect x="220" y="16" width="86" height="22" fill="#57a892"/>
+            <rect x="310" y="16" width="130" height="22" fill="#a8cfc4"/>
+
+            <text x="6" y="31" fill="#fff" font-size="10">00:00</text>
+            <text x="128" y="31" fill="#fff" font-size="10">产品演示</text>
+            <text x="238" y="31" fill="#fff" font-size="10">Q&amp;A</text>
+            <text x="376" y="31" fill="#14161a" font-size="10">结尾</text>
+
+            <line x1="216" y1="44" x2="216" y2="64" stroke="#b8342a"/>
+            <circle cx="216" cy="68" r="3.5" fill="#b8342a"/>
+            <text x="216" y="86" text-anchor="middle" font-size="10.5" fill="#b8342a">事件定位</text>
+
+            <text class="sn" x="0" y="110">不是「总结这段视频」，而是「第 37 分钟那句承诺，</text>
+            <text class="sn" x="0" y="126">原话是什么，前后各 30 秒在说什么」。</text>
+            <text class="sn" x="0" y="146">后者才是会议记录、尽调、课程切片真正要的东西。</text>
+          </svg>
+        </div>
+
+        <div class="block">
+          <h4>真正的新东西</h4>
+          <p>把「长视频 + 精确时间定位」当成主卖点，而且在开放权重里做到了第一梯队：MMMU-Pro 84.1 压着一堆闭源旗舰，Video-MME 90.0 是公开数字里最高的一档。3T 级稀疏 MoE + 1M 上下文，读两小时录像是它的主场。</p>
+        </div>
+        <div class="block">
+          <h4>注意</h4>
+          <p>Video-MME 的 90.0 是<b>旧协议</b>。换成 v2 严格协议，全场最强也只在 49.4——这个分数不能用来说「已经能替代人看片」。另外它只吃文、图、视频，没有音频通道，纯语音素材要先转写。</p>
+        </div>
+      </div>
+    </article>
+
+    <!-- DeepSeek -->
+    <article class="brand" style="--b:#8a8f98">
+      <div class="brand-top">
+        <div class="brand-name"><h3>深度求索 · DeepSeek</h3><span class="brand-date">Experimental</span></div>
+        <div class="model">V4 Flash Vision</div>
+        <p class="role">视觉不是主战场，是「顺手加上去」的那一档</p>
+      </div>
+      <div class="brand-body">
+        <div class="metrics">
+          <div class="metric"><b>76.7%</b><span>MMMU，不在第一梯队</span></div>
+          <div class="metric"><b>$0.216</b><span>输入每百万 token</span></div>
+          <div class="metric"><b>$0.647</b><span>输出每百万 token</span></div>
+          <div class="metric"><b>试验</b><span>名字带 Experimental</span></div>
+        </div>
+
+        <div class="cell-fig">
+          <div class="cell-cap">输入价对比（$/M）</div>
+          <svg class="chart" viewBox="0 0 440 150" role="img" aria-label="输入价格对比：DeepSeek V4 Flash Vision 0.216 美元，GPT-6.1 Terra 1 美元，Gemini 4 Argon 2 美元">
+            <text class="sl" x="0" y="28">V4 Flash Vision</text>
+            <rect x="146" y="14" width="22" height="20" fill="#8a8f98"/>
+            <text class="sv" x="176" y="29">$0.216</text>
+
+            <text class="sl" x="0" y="64">GPT-6.1 Terra</text>
+            <rect x="146" y="50" width="105" height="20" fill="#14161a"/>
+            <text class="sv" x="259" y="65">$1.00</text>
+
+            <text class="sl" x="0" y="100">Gemini 4 Argon</text>
+            <rect x="146" y="86" width="210" height="20" fill="#2b6cb0"/>
+            <text class="sv" x="364" y="101">$2.00</text>
+
+            <text class="sn" x="0" y="132">差 9 倍。对「大批量图片先过一遍」这种活，这个差距比 5 分 MMMU 重要得多。</text>
+          </svg>
+        </div>
+
+        <div class="block">
+          <h4>真正的新东西</h4>
+          <p>没什么结构性的新东西，它的价值是<b>价格锚</b>：$0.216 的输入价让「先全量过一遍图，再决定哪张交给贵模型」这条流水线第一次算得过账。粗筛用便宜档、精判用旗舰，是今年最实际的成本结构。</p>
+        </div>
+        <div class="block">
+          <h4>注意</h4>
+          <p>挂着 Experimental，意味着随时改名、改价、下线。别把它写进长期合同或 SLA。MMMU 76.7 也说明它做不了精细的图表推理和空间判断——粗筛可以，定稿不行。</p>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============ 06 架构 ============ -->
+<section id="arch">
+  <div class="sec-head"><span class="sec-num">06</span><h2>三种融合方式，三种代价</h2></div>
+  <p class="sec-sub">「多模态」在架构上只有三种做法。选哪种不取决于先进程度，取决于你的瓶颈是细节、延迟还是时长。</p>
+
+  <figure class="fig">
+    <div class="fig-head">
+      <h3>早期融合 / 双塔 / 生成侧单流</h3>
+      <span>结构示意</span>
+    </div>
+    <div class="fig-scroll">
+      <svg class="chart" viewBox="0 0 680 400" role="img" aria-label="三种多模态融合架构对比：早期token级融合、Thinker-Talker双塔、生成侧单流扩散">
+        <!-- A -->
+        <rect x="0" y="0" width="212" height="330" rx="4" fill="#fff" stroke="#e2ddd3"/>
+        <rect x="0" y="0" width="212" height="4" fill="#2b6cb0"/>
+        <text x="16" y="30" font-size="11" fill="#9398a0" letter-spacing="1.2">A · EARLY FUSION</text>
+        <text x="16" y="54" font-size="14" font-weight="700" fill="#14161a">token 级早期融合</text>
+
+        <g font-size="10" text-anchor="middle">
+          <rect x="16" y="72" width="40" height="18" rx="2" fill="#14161a"/><text x="36" y="85" fill="#fff">文</text>
+          <rect x="60" y="72" width="40" height="18" rx="2" fill="#2b6cb0"/><text x="80" y="85" fill="#fff">图</text>
+          <rect x="104" y="72" width="40" height="18" rx="2" fill="#c4622d"/><text x="124" y="85" fill="#fff">音</text>
+          <rect x="148" y="72" width="40" height="18" rx="2" fill="#6b3fa0"/><text x="168" y="85" fill="#fff">视</text>
+        </g>
+        <line x1="16" y1="102" x2="196" y2="102" stroke="#c9c4ba"/>
+        <rect x="16" y="110" width="180" height="34" rx="3" fill="#f4f7fb" stroke="#2b6cb0"/>
+        <text x="106" y="131" text-anchor="middle" font-size="11" fill="#14161a">同一序列，注意力全连</text>
+
+        <rect x="16" y="156" width="180" height="26" rx="3" fill="#fff" stroke="#e2ddd3"/>
+        <text x="106" y="173" text-anchor="middle" font-size="11" fill="#4a4e56">Transformer（共享）</text>
+        <line x1="106" y1="144" x2="106" y2="156" stroke="#c9c4ba"/>
+
+        <rect x="16" y="196" width="180" height="26" rx="3" fill="#fff" stroke="#e2ddd3"/>
+        <text x="106" y="213" text-anchor="middle" font-size="11" fill="#4a4e56">文字 / 坐标 / JSON</text>
+        <line x1="106" y1="182" x2="106" y2="196" stroke="#c9c4ba"/>
+
+        <text x="16" y="248" font-size="10.5" fill="#9398a0">代表</text>
+        <text x="16" y="266" font-size="11.5" fill="#14161a">Gemini 4 · Qwen3-VL-Plus</text>
+        <text x="16" y="292" font-size="10.5" fill="#6b7079">换来：细节不丢，跨模态联合推理</text>
+        <text x="16" y="310" font-size="10.5" fill="#b8342a">代价：视觉 token 爆炸，长视频很贵</text>
+
+        <!-- B -->
+        <rect x="234" y="0" width="212" height="330" rx="4" fill="#fff" stroke="#e2ddd3"/>
+        <rect x="234" y="0" width="212" height="4" fill="#c4622d"/>
+        <text x="250" y="30" font-size="11" fill="#9398a0" letter-spacing="1.2">B · TWO TOWERS</text>
+        <text x="250" y="54" font-size="14" font-weight="700" fill="#14161a">Thinker / Talker 双塔</text>
+
+        <rect x="250" y="72" width="78" height="52" rx="3" fill="#fff" stroke="#c4622d"/>
+        <text x="289" y="94" text-anchor="middle" font-size="11" font-weight="700" fill="#14161a">Thinker</text>
+        <text x="289" y="111" text-anchor="middle" font-size="9.5" fill="#6b7079">理解 / 决策</text>
+
+        <rect x="352" y="72" width="78" height="52" rx="3" fill="#c4622d"/>
+        <text x="391" y="94" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">Talker</text>
+        <text x="391" y="111" text-anchor="middle" font-size="9.5" fill="#fbe6da">发声 / 音色</text>
+
+        <text x="340" y="98" text-anchor="middle" font-size="9" fill="#9398a0">解耦</text>
+
+        <rect x="250" y="136" width="78" height="26" rx="3" fill="#fdfbf7" stroke="#e2ddd3"/>
+        <text x="289" y="153" text-anchor="middle" font-size="10" fill="#4a4e56">文本</text>
+        <rect x="352" y="136" width="78" height="26" rx="3" fill="#fdfbf7" stroke="#e2ddd3"/>
+        <text x="391" y="153" text-anchor="middle" font-size="10" fill="#4a4e56">语音流</text>
+        <line x1="289" y1="124" x2="289" y2="136" stroke="#c9c4ba"/>
+        <line x1="391" y1="124" x2="391" y2="136" stroke="#c9c4ba"/>
+
+        <text x="250" y="184" font-size="10.5" fill="#4a4e56">两塔解耦，可各给一套 prompt</text>
+        <text x="250" y="200" font-size="10.5" fill="#4a4e56">共享同一套多模态表征</text>
+
+        <text x="250" y="230" font-size="10.5" fill="#9398a0">代表</text>
+        <text x="250" y="248" font-size="11.5" fill="#14161a">Qwen3-Omni-30B-A3B</text>
+        <text x="250" y="274" font-size="10.5" fill="#6b7079">换来：首包 234ms，边说边听</text>
+        <text x="250" y="292" font-size="10.5" fill="#b8342a">代价：两套训练目标，工程复杂</text>
+        <text x="250" y="310" font-size="10.5" fill="#6b7079">同步：时间戳对齐，任意时长流式</text>
+
+        <!-- C -->
+        <rect x="468" y="0" width="212" height="330" rx="4" fill="#fff" stroke="#e2ddd3"/>
+        <rect x="468" y="0" width="212" height="4" fill="#6b3fa0"/>
+        <text x="484" y="30" font-size="11" fill="#9398a0" letter-spacing="1.2">C · SINGLE STREAM</text>
+        <text x="484" y="54" font-size="14" font-weight="700" fill="#14161a">生成侧单流扩散</text>
+
+        <rect x="484" y="72" width="180" height="26" rx="3" fill="#f4f0fa" stroke="#6b3fa0"/>
+        <text x="574" y="89" text-anchor="middle" font-size="10.5" fill="#14161a">文 / 图 / 音 / 视频参考 → 条件</text>
+
+        <rect x="484" y="112" width="180" height="50" rx="3" fill="#6b3fa0"/>
+        <text x="574" y="132" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">共享 latent 去噪</text>
+        <text x="574" y="149" text-anchor="middle" font-size="9.5" fill="#e6dcf4">画面与声音同步生成</text>
+        <line x1="574" y1="98" x2="574" y2="112" stroke="#c9c4ba"/>
+
+        <rect x="484" y="176" width="86" height="26" rx="3" fill="#fff" stroke="#e2ddd3"/>
+        <text x="527" y="193" text-anchor="middle" font-size="10" fill="#4a4e56">视频轨</text>
+        <rect x="578" y="176" width="86" height="26" rx="3" fill="#fff" stroke="#e2ddd3"/>
+        <text x="621" y="193" text-anchor="middle" font-size="10" fill="#4a4e56">音频轨</text>
+        <line x1="527" y1="162" x2="527" y2="176" stroke="#c9c4ba"/>
+        <line x1="621" y1="162" x2="621" y2="176" stroke="#c9c4ba"/>
+
+        <text x="484" y="230" font-size="10.5" fill="#9398a0">代表</text>
+        <text x="484" y="248" font-size="11.5" fill="#14161a">MiniMax H3 · Seedance 2.5</text>
+        <text x="484" y="274" font-size="10.5" fill="#6b7079">换来：口型音效天然对齐，无后期</text>
+        <text x="484" y="292" font-size="10.5" fill="#b8342a">代价：时长 / 分辨率 / 可控性受限</text>
+        <text x="484" y="310" font-size="10.5" fill="#6b7079">不产出「结论」，只产出素材</text>
+
+        <line x1="0" y1="356" x2="680" y2="356" stroke="#e2ddd3"/>
+        <text class="sn" x="0" y="380">选型映射：要抠细节 → A；要低延迟对话 → B；要一次成片 → C。三者可以叠，但别指望一个模型全占。</text>
+      </svg>
+    </div>
+    <figcaption>
+      A 类的隐性成本在推理侧：一张 4K 图可能吃掉几千个视觉 token，视频更夸张。B 类的隐性成本在训练侧：两套目标要一起调，否则「说得流利但答错」。C 类的隐性成本在可控性：去噪一次成型，改一个镜头往往要重跑。
+      <br>想更细地看「融合深度」这一层——late / mid / early 三档的划分，以及 457 个模型的 scaling 实验——见另一篇：<a href="2026-11-25-native-multimodal.html" style="color:#3a46c9">《原生多模态 · 流派、架构与训练范式》</a>。
+    </figcaption>
+  </figure>
+</section>
+
+<!-- ============ 07 时间轴 ============ -->
+<section id="timeline">
+  <div class="sec-head"><span class="sec-num">07</span><h2>这一年是怎么走过来的</h2></div>
+  <p class="sec-sub">实心点是本期的转折点，其余圆点按厂商着色。只看日期会发现一件事：七月底那一周，生成侧集体换了一代。</p>
+
+  <ul class="tl-list">
+    <li class="tl" style="--tc:#c4622d"><time>02-12</time><p><b>Seedance 2.0</b> 发布：双分支扩散 Transformer，音视频联合生成，15 秒 2K，15 个参考。春晚已先用过。</p></li>
+    <li class="tl" style="--tc:#c4622d"><time>04-23</time><p><b>Seed3D 2.0</b>：几何、PBR 材质、关节物体，直接输出可用于仿真的 3D 资产。多模态开始往「空间」走。</p></li>
+    <li class="tl" style="--tc:#c4622d"><time>06-23</time><p><b>Seed 2.1 Pro / Turbo</b>：MMMU-Pro 带工具 82.7、VideoMME 89.2，视觉理解成为这一代的主宣传点。</p></li>
+    <li class="tl hot" style="--tc:#6b3fa0"><time>07-31</time><p><b>Seedance 2.5 与 MiniMax H3 同日发布</b>。一边是 30 秒 4K + 50 参考，一边是 33B 单流 + 原生立体声。生成侧的分水岭在这天。</p></li>
+    <li class="tl" style="--tc:#6b3fa0"><time>08-03</time><p><b>H3 开放权重</b>（H3-Base 的 FL2VA / Ref2VA）。生成模型开源，第一次有 33B 级别可选。</p></li>
+    <li class="tl" style="--tc:#14161a"><time>09-03</time><p><b>GPT-6 Astra</b>：1.05M 上下文，OSWorld 2.0 72.6%。官方模态表仍只有文本与图像。</p></li>
+    <li class="tl" style="--tc:#c4622d"><time>09-15</time><p><b>Seed 2.1 Pro 0915</b>：上下文从 25.6 万拉到约 100 万，价格不变，图像/视频推理 token 消耗降三成。</p></li>
+    <li class="tl hot" style="--tc:#2b6cb0"><time>10-13</time><p><b>Gemini 4 Argon 正式可用</b>：五模态原生输入，LVBench 91.7%，长解码可到百万级。原生多模态这条线暂时没有对手。</p></li>
+    <li class="tl" style="--tc:#14161a"><time>10-26</time><p><b>GPT-6.1 Terra</b>：视觉推理 + 电脑操作，$1/$5，MMMU-Pro 85.5%。把「看图」和「动手」绑在一起。</p></li>
+    <li class="tl" style="--tc:#4c5fd5"><time>11-09</time><p><b>Qwen3-VL-Plus</b> 与 <b>Gemini Omni 1.2 Flash</b> 同日：一个把图纸解析做成工业 SDK，一个把 720p 生成压到 $0.07/秒。</p></li>
+    <li class="tl" style="--tc:#4c5fd5"><time>11-16</time><p><b>Qwen4-Max</b>：2.4T / 71B 激活，原生视觉，1M 上下文，单任务成本较上代 −58%。视觉进了基座，不再是外挂。</p></li>
+    <li class="tl" style="--tc:#14161a"><time>11-17</time><p><b>GPT-6.2 Astra</b>：GDPval v2 高 6.2 分、输出 token 少 22%。同一条线上小步快跑。</p></li>
+  </ul>
+</section>
+
+<!-- ============ 08 选型 ============ -->
+<section id="pick">
+  <div class="sec-head"><span class="sec-num">08</span><h2>按任务选，不按榜选</h2></div>
+  <p class="sec-sub">六个真实场景，每个给一个首选和一个备选。备选存在的理由通常是价格、私有化或合规。</p>
+
+  <div class="mxgrid">
+    <div class="mx">
+      <div class="mx-task">长视频 / 会议 / 课程录像</div>
+      <div class="mx-pick">Gemini 4 Argon · Kimi K3.1 Pro</div>
+      <div class="mx-why">要连音频里的语气一起判断，只有 Argon 是真原生；只要画面 + 时间定位，Kimi 的 1M 窗口更便宜。两者都别信 85+ 的旧协议分数。</div>
+    </div>
+    <div class="mx">
+      <div class="mx-task">图纸 / 文档 / 工业质检</div>
+      <div class="mx-pick">Qwen3-VL-Plus · GLM-4.6V</div>
+      <div class="mx-why">Plus 直接对着百万级图纸和倾斜文档 OCR，还配免费 SDK；要私有化就上 GLM-4.6V 的 9B 档。只抽文字用 OCR 专用模型，便宜十倍。</div>
+    </div>
+    <div class="mx">
+      <div class="mx-task">实时语音助手 / 客服</div>
+      <div class="mx-pick">Qwen3-Omni（自建 / API）</div>
+      <div class="mx-why">230ms 级首包 + 可开源，是唯一能自己改的项目；API 版支持 74 种语言、39 种中文方言。Gemini 那条线输入有音频但输出只有文字，做不了全双工。</div>
+    </div>
+    <div class="mx">
+      <div class="mx-task">屏幕操作 Agent</div>
+      <div class="mx-pick">GPT-6.1 Terra · GLM-4.6V</div>
+      <div class="mx-why">Terra 是把视觉判断接到动作上训的，OSWorld 2.1 有明确提升；GLM 的原生 function calling 让截图能直接当工具入参，适合自建闭环。</div>
+    </div>
+    <div class="mx">
+      <div class="mx-task">广告片 / 短剧 / 社媒素材</div>
+      <div class="mx-pick">Seedance 2.5（质量）· MiniMax H3（成本）</div>
+      <div class="mx-why">30 秒 4K + 50 参考适合品牌片，用 480p 草稿先验分镜；批量投放走 H3，每分钟成本差七倍，这个差距比 Elo 的 20 分更影响项目能不能做。</div>
+    </div>
+    <div class="mx">
+      <div class="mx-task">大批量图片预处理</div>
+      <div class="mx-pick">DeepSeek V4 Flash Vision · Qwen3-VL-8B</div>
+      <div class="mx-why">$0.216 与 $0.25 的输入价，做「先全量粗筛、再挑给旗舰」的第一层。别用它们定稿，MMMU 76–78 说明精细图表推理还不够。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 09 口径 ============ -->
+<section id="source">
+  <div class="sec-head"><span class="sec-num">09</span><h2>口径，以及我没敢写成事实的部分</h2></div>
+  <div class="src">
+    <p>这个栏目的原则是：<b>数字必须能追到出处，追不到就标成「待确认」。</b>多模态这一块比纯文本模型更容易看错，原因有六条。</p>
+    <ol>
+      <li><b>同一张榜，三个第一名。</b>MMMU-Pro 在三个汇总站上分别把 GPT-6.1 Terra（85.5%）、GPT-6.1 Sol（85.95%）、Claude Opus 5.5（87.7%）排在第一。差异来自版本、思考档位和是否带工具。本文取 11/21 那份，并注明它也是厂商自报。</li>
+      <li><b>视频评测的帧预算不一致。</b>Qwen3-VL 的技术报告写明给自己 2048 帧，Gemini 512、GPT-5 256、Claude 100（受 API 限制）。这个对比不公平，官方自己也承认。</li>
+      <li><b>旧协议系统性高估。</b>Video-MME v2 严格协议下，人类 90.7、最强闭源 49.4、最强开源 39.1；旧协议被估计整体高约 17 分。凡是看到「视频理解 90 分」，先问协议。</li>
+      <li><b>GPT-6 Astra 的模态有冲突说法。</b>官方模型页只列文本与图像；有研报与二手文章称支持音频、视频实时联合解析。本文按官方口径记，并把它标为待确认。</li>
+      <li><b>生成模型的「每秒成本」不含返工。</b>Seedance 的 $34.12/分钟与 H3 的 $4.80/分钟都是输出计价，实际项目里还要乘上废片率。废片率没人公开，只能自己测。</li>
+      <li><b>榜位每周变。</b>视频生成的 Elo 榜尤其如此，本文引用的是 11/17–11/18 的快照。做预算时请重读一次，不要把快照当长期结论。</li>
+    </ol>
+    <p style="margin-top:22px">另外三处本文主动没写死：Qwen3-Omni-Flash 的具体价格（官方只说「显著下降」）、H3 的「11 月 10 日首次发布」说法（官方许可落款是 8 月 2 日，不采信二手日期）、MiniMax H3 与 Seedance 2.5 的图生视频 Elo 直接可比性（H3 未公开 Elo，只能记榜位）。</p>
+    <p>主要来源：各厂商官方模型页与模型卡（OpenAI 模型文档、Google AI for Developers、阿里云百炼、火山方舟、MiniMax 开放平台、智谱、Moonshot、DeepSeek）、Qwen3-VL / Qwen3-Omni 技术报告、BytePlus Seedance 文档，辅以 Artificial Analysis 视频榜、LLMBoard / BenchLM / DataLearner 的 benchmark 汇总，以及 11 月 9 日、11 月 16 日前后的公开报道。</p>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <div class="wrap foot-row">
+    <div>Multimodal Atlas 第 01 期 · 2026-11-26 · 下次更新 12 月中</div>
+    <div><a href="./">← 全部页面</a> &nbsp;·&nbsp; <a href="multimodal/">本栏目</a></div>
+  </div>
+</footer>
+
+</body>
+</html>
